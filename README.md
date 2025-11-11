@@ -340,6 +340,7 @@ In `src/scrapers/snowflake_scraper.py`:
 - Pagination limited to 5 pages (~60 case studies) for testing
 - Some pages return short content (may need content extraction tuning)
 - Customer name extraction could be improved
+- Individual files are gitignored (use cloud storage for backup/versioning)
 
 ## Cost Estimates
 
@@ -403,8 +404,10 @@ In `src/scrapers/snowflake_scraper.py`:
 ### Phase 1: Proof of Concept (Current)
 - ✅ Project structure
 - ✅ Snowflake scraper with pagination
+- ✅ Individual file storage (organized by vendor)
 - ✅ Gemini classifier
 - ✅ Neo4j integration
+- ✅ URL deduplication and quality filtering
 - ⏳ Data quality validation
 
 ### Phase 2: Core Platform (Next)
