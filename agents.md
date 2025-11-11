@@ -69,58 +69,126 @@ Load these into prompts to ensure consistent classification.
 
 ## Graph Schema
 
+The complete data model is defined in `data/schema/data_model.json` and can be validated using Neo4j data modeling MCP tools.
+
+### Data Model Diagram
+
+```mermaid
+erDiagram
+    Vendor ||--o{ Reference : PUBLISHED
+    Reference ||--|| Customer : FEATURES
+    Customer }o--|| Industry : IN_INDUSTRY
+    Reference }o--o{ UseCase : ADDRESSES_USE_CASE
+    Reference }o--o{ Outcome : ACHIEVED_OUTCOME
+    Reference }o--o{ Persona : MENTIONS_PERSONA
+    Reference }o--o{ Technology : MENTIONS_TECH
+
+    Vendor {
+        string name PK
+        string website
+    }
+    
+    Reference {
+        string id PK
+        string url
+        string raw_text
+        integer word_count
+        datetime scraped_date
+        datetime classification_date
+        string quoted_text
+        boolean classified
+    }
+    
+    Customer {
+        string name PK
+        string size
+        string region
+        string country
+    }
+    
+    Industry {
+        string name PK
+    }
+    
+    UseCase {
+        string name PK
+    }
+    
+    Persona {
+        string title PK
+        string name
+        string seniority
+    }
+    
+    Outcome {
+        string description PK
+        string type
+        string metric
+    }
+    
+    Technology {
+        string name PK
+    }
+```
+
 ### Core Nodes
-```cypher// Vendor who published the reference
-(:Vendor {
-name: string,           // "Snowflake"
-website: string,        // "https://snowflake.com"
-scraped_date: datetime
-})// Customer being referenced
-(:Customer {
-name: string,           // "Capital One"
-size: string,           // "Enterprise"
-region: string,         // "North America"
-country: string         // "United States" (optional)
-})// The reference content itself
-(:Reference {
-id: string,             // UUID or vendor_ref_001
-url: string,
-type: string,           // "case_study", "video", "blog"
-raw_text: string,       // Full scraped text
-raw_html: string,       // Original HTML (optional)
-scraped_date: datetime,
-word_count: integer,
-quoted_text: string,    // Best customer quote
-classified: boolean,    // Processing flag
-classification_date: datetime
-})// Industry categories
-(:Industry {name: string})  // "Financial Services"// Use cases solved
-(:UseCase {
-name: string,           // "Real-time Analytics"
-description: string     // (optional)
-})// Job titles/personas featured
-(:Persona {
-title: string,          // "Chief Data Officer"
-seniority: string       // "C-Level", "VP", "Director"
-})// Business outcomes achieved
-(:Outcome {
-type: string,           // "performance", "cost_savings", "revenue_impact"
-description: string,    // "10x faster queries"
-metric: string          // (optional) "10x"
-})// Technologies mentioned
-(:Technology {
-name: string,           // "AWS", "dbt"
-category: string        // "Cloud Platform", "Transformation Tool"
-})
+
+**Vendor** - Company publishing the reference
+- `name` (PK): Vendor name (e.g., "Snowflake")
+- `website`: Vendor website URL
+
+**Reference** - The actual case study/video/blog content
+- `id` (PK): Unique reference ID (UUID)
+- `url`: Source URL
+- `raw_text`: Full scraped text content
+- `word_count`: Number of words in raw_text
+- `scraped_date`: When content was scraped
+- `classification_date`: When classification completed
+- `quoted_text`: Best customer quote extracted
+- `classified`: Processing flag (false = needs classification)
+
+**Customer** - Company featured in the reference
+- `name` (PK): Customer company name (e.g., "Capital One")
+- `size`: Company size (Enterprise, Mid-Market, SMB, Startup, Unknown)
+- `region`: Geographic region (North America, EMEA, APAC, LATAM, Unknown)
+- `country`: Specific country if mentioned (optional)
+
+**Industry** - Industry classification
+- `name` (PK): Industry name (e.g., "Financial Services", "Technology & Software")
+
+**UseCase** - Use cases addressed
+- `name` (PK): Use case name (e.g., "ML/AI & Predictive Analytics", "Data Lakehouse")
+
+**Persona** - Job titles/personas featured
+- `title` (PK): Job title (e.g., "Chief Data Officer")
+- `name`: Person's name if mentioned
+- `seniority`: Seniority level (C-Level, VP, Director, Manager, Individual Contributor)
+
+**Outcome** - Business outcomes achieved
+- `description` (PK): Outcome description (e.g., "10x faster queries")
+- `type`: Outcome type (performance, cost_savings, revenue_impact, efficiency, other)
+- `metric`: Specific metric if mentioned (e.g., "10x", "40% reduction")
+
+**Technology** - Technologies mentioned
+- `name` (PK): Technology name (e.g., "AWS", "dbt", "PostgreSQL")
 
 ### Core Relationships
-```cypher(Vendor)-[:PUBLISHED]->(Reference)
+
+```cypher
+(Vendor)-[:PUBLISHED]->(Reference)
 (Reference)-[:FEATURES]->(Customer)
 (Customer)-[:IN_INDUSTRY]->(Industry)
 (Reference)-[:ADDRESSES_USE_CASE]->(UseCase)
 (Reference)-[:ACHIEVED_OUTCOME]->(Outcome)
 (Reference)-[:MENTIONS_PERSONA]->(Persona)
-(Customer)-[:USES_TECH]->(Technology)
+(Reference)-[:MENTIONS_TECH]->(Technology)
+```
+
+### Indexes
+
+- `Customer.name` - For fast customer lookups
+- `Reference.url` - For URL deduplication
+- `Vendor.name` - For vendor lookups
 
 ## Common Tasks & How to Approach Them
 

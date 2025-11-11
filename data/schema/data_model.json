@@ -1,0 +1,206 @@
+{
+  "nodes": [
+    {
+      "label": "Vendor",
+      "key_property": {
+        "name": "name",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "website",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Reference",
+      "key_property": {
+        "name": "id",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "id",
+          "type": "STRING"
+        },
+        {
+          "name": "url",
+          "type": "STRING"
+        },
+        {
+          "name": "raw_text",
+          "type": "STRING"
+        },
+        {
+          "name": "word_count",
+          "type": "INTEGER"
+        },
+        {
+          "name": "scraped_date",
+          "type": "DATE_TIME"
+        },
+        {
+          "name": "classification_date",
+          "type": "DATE_TIME"
+        },
+        {
+          "name": "quoted_text",
+          "type": "STRING"
+        },
+        {
+          "name": "classified",
+          "type": "BOOLEAN"
+        }
+      ]
+    },
+    {
+      "label": "Customer",
+      "key_property": {
+        "name": "name",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "size",
+          "type": "STRING"
+        },
+        {
+          "name": "region",
+          "type": "STRING"
+        },
+        {
+          "name": "country",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Industry",
+      "key_property": {
+        "name": "name",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "UseCase",
+      "key_property": {
+        "name": "name",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Persona",
+      "key_property": {
+        "name": "title",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "title",
+          "type": "STRING"
+        },
+        {
+          "name": "name",
+          "type": "STRING"
+        },
+        {
+          "name": "seniority",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Outcome",
+      "key_property": {
+        "name": "description",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "type",
+          "type": "STRING"
+        },
+        {
+          "name": "description",
+          "type": "STRING"
+        },
+        {
+          "name": "metric",
+          "type": "STRING"
+        }
+      ]
+    },
+    {
+      "label": "Technology",
+      "key_property": {
+        "name": "name",
+        "type": "STRING"
+      },
+      "properties": [
+        {
+          "name": "name",
+          "type": "STRING"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "type": "PUBLISHED",
+      "start_node_label": "Vendor",
+      "end_node_label": "Reference"
+    },
+    {
+      "type": "FEATURES",
+      "start_node_label": "Reference",
+      "end_node_label": "Customer"
+    },
+    {
+      "type": "IN_INDUSTRY",
+      "start_node_label": "Customer",
+      "end_node_label": "Industry"
+    },
+    {
+      "type": "ADDRESSES_USE_CASE",
+      "start_node_label": "Reference",
+      "end_node_label": "UseCase"
+    },
+    {
+      "type": "ACHIEVED_OUTCOME",
+      "start_node_label": "Reference",
+      "end_node_label": "Outcome"
+    },
+    {
+      "type": "MENTIONS_PERSONA",
+      "start_node_label": "Reference",
+      "end_node_label": "Persona"
+    },
+    {
+      "type": "MENTIONS_TECH",
+      "start_node_label": "Reference",
+      "end_node_label": "Technology"
+    }
+  ]
+}
+

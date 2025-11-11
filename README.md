@@ -141,14 +141,63 @@ The scraper uses **HyperBrowser.ai directly**:
 ### 3. Graph Storage
 
 **Neo4j Graph Structure**:
-```
-(Vendor)-[:PUBLISHED]->(Reference)
-(Reference)-[:FEATURES]->(Customer)
-(Customer)-[:IN_INDUSTRY]->(Industry)
-(Reference)-[:ADDRESSES_USE_CASE]->(UseCase)
-(Reference)-[:ACHIEVED_OUTCOME]->(Outcome)
-(Reference)-[:MENTIONS_PERSONA]->(Persona)
-(Reference)-[:MENTIONS_TECH]->(Technology)
+
+```mermaid
+erDiagram
+    Vendor ||--o{ Reference : PUBLISHED
+    Reference ||--|| Customer : FEATURES
+    Customer }o--|| Industry : IN_INDUSTRY
+    Reference }o--o{ UseCase : ADDRESSES_USE_CASE
+    Reference }o--o{ Outcome : ACHIEVED_OUTCOME
+    Reference }o--o{ Persona : MENTIONS_PERSONA
+    Reference }o--o{ Technology : MENTIONS_TECH
+
+    Vendor {
+        string name PK
+        string website
+    }
+    
+    Reference {
+        string id PK
+        string url
+        string raw_text
+        integer word_count
+        datetime scraped_date
+        datetime classification_date
+        string quoted_text
+        boolean classified
+    }
+    
+    Customer {
+        string name PK
+        string size
+        string region
+        string country
+    }
+    
+    Industry {
+        string name PK
+    }
+    
+    UseCase {
+        string name PK
+    }
+    
+    Persona {
+        string title PK
+        string name
+        string seniority
+    }
+    
+    Outcome {
+        string description PK
+        string type
+        string metric
+    }
+    
+    Technology {
+        string name PK
+    }
 ```
 
 **Key Features**:
@@ -156,6 +205,17 @@ The scraper uses **HyperBrowser.ai directly**:
 - Raw text preserved in Reference nodes
 - `classified` flag tracks processing status
 - Indexes on Customer.name, Reference.url, Vendor.name
+- Full data model available in `data/schema/data_model.json`
+
+**Node Descriptions**:
+- **Vendor**: Company publishing the reference (e.g., Snowflake)
+- **Reference**: The actual case study/video/blog content with raw scraped text
+- **Customer**: The company being featured in the reference
+- **Industry**: Industry classification (Financial Services, Technology, etc.)
+- **UseCase**: Use cases addressed (ML/AI, Data Lakehouse, etc.)
+- **Outcome**: Business outcomes achieved (performance, cost savings, etc.)
+- **Persona**: Job titles and personas featured in the reference
+- **Technology**: Technologies mentioned (AWS, dbt, etc.)
 
 ## Usage Examples
 
