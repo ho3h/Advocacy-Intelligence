@@ -22,8 +22,14 @@ This is a competitive intelligence platform for B2B customer marketing teams. We
 
 ### Critical Design Patterns
 
-#### 1. Separation of ConcernsScraping → Load Raw to DB → Classify → Enrich Graph
-Each step is a separate function/module. Raw content is always preserved.
+#### 1. Separation of Concerns
+```
+Scraping → Save Individual Files → Load Raw to DB → Classify → Enrich Graph
+```
+Each step is a separate function/module. Raw content is always preserved:
+- **Individual files**: Each reference saved as `data/scraped/{vendor}/{customer-slug}-{timestamp}.json`
+- **Database**: Raw text stored in Neo4j Reference nodes
+- **Backup**: Files serve as local backup and enable easy export to cloud storage
 
 #### 2. Idempotent Graph Operations
 Always use MERGE, never CREATE for nodes that might already exist:
@@ -212,6 +218,15 @@ erDiagram
 'scraped_date': str,  # ISO format
 'word_count': int
 }
+```
+
+**File Storage**: The pipeline automatically saves each reference to `data/scraped/{vendor}/{customer-slug}-{timestamp}.json` using `utils.file_storage.save_reference_file()`. This provides:
+- Local backup of all scraped content
+- Easy export to cloud storage (S3, GCS, etc.)
+- Version control of individual stories
+- Incremental updates without re-scraping
+
+To disable file saving, set `SAVE_RAW_DATA=false` in environment variables.
 
 ### Task: Improve Classification Prompt
 
@@ -316,6 +331,16 @@ Google Gemini (gemini-2.5-flash) is very affordable. For v1:
 
 Track usage during development.
 
+### 6. Preserve Raw Data in Multiple Formats
+Raw scraped content is preserved in two places:
+- **Individual JSON files**: `data/scraped/{vendor}/{customer-slug}-{timestamp}.json` - Easy to backup, version, and export
+- **Neo4j database**: `Reference.raw_text` property - Queryable, searchable, always available
+
+This dual storage approach ensures:
+- Files can be easily pushed to cloud storage or versioned separately
+- Database provides fast querying and relationship traversal
+- If one storage fails, the other serves as backup
+
 ## File Organization Conventions
 
 ### Module Naming
@@ -336,6 +361,7 @@ Track usage during development.
 - `raw_*` for unprocessed data
 - `*_result` for Neo4j results
 - `*_data` for Python dicts/lists
+- `*_filepath` for file paths
 
 ## Testing Approach
 

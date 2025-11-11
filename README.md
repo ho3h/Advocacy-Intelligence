@@ -12,10 +12,12 @@ This platform scrapes customer references from competitor websites, classifies t
 ## Features
 
 - **Web Scraping**: HyperBrowser.ai for JavaScript-rendered pages (BeautifulSoup always gets blocked by Cloudflare)
+- **Individual File Storage**: Each reference saved as `{customer-slug}-{timestamp}.json` organized by vendor folder
 - **AI Classification**: Google Gemini extracts structured data (industries, use cases, outcomes, personas, tech stacks)
 - **Graph Database**: Neo4j AuraDB stores relationships between vendors, customers, references, and metadata
 - **Similarity Search**: Find customer references matching prospect profiles (industry, use case, company size, region)
 - **Idempotent Operations**: Safe to re-run scrapers and classifiers without creating duplicates
+- **Dual Storage**: Raw content preserved in both individual files and Neo4j for backup and querying
 
 ## Tech Stack
 
@@ -127,6 +129,17 @@ The scraper uses **HyperBrowser.ai directly**:
 - Extracts case study links matching pattern: `/customers/all-customers/case-study/{company}/`
 - Handles pagination automatically
 - Respects rate limits (2-second delays)
+- Filters out invalid URLs and low-quality scrapes (<100 words)
+
+### 1.5. File Storage Phase
+
+After scraping, each reference is saved as an individual JSON file:
+
+- **Location**: `data/scraped/{vendor}/{customer-slug}-{timestamp}.json`
+- **Organization**: Files organized by vendor folder (e.g., `data/scraped/snowflake/`)
+- **Filename**: Generated from URL slug or customer name, with timestamp for uniqueness
+- **Purpose**: Local backup, easy export to cloud storage, version control
+- **Configurable**: Set `SAVE_RAW_DATA=false` to disable (default: true)
 
 ### 2. Classification Phase
 
@@ -369,9 +382,21 @@ In `src/scrapers/snowflake_scraper.py`:
 - Test connection in Neo4j Browser first
 
 **Problem**: Duplicate nodes
-- Shouldn't happen with MERGE operations
-- Clear database: `MATCH (n) DETACH DELETE n`
-- Re-run pipeline
+- Shouldn't happen with MERGE operations (URL deduplication built-in)
+- Use cleanup script: `python scripts/cleanup_duplicates.py --all`
+- Clear database: `MATCH (n) DETACH DELETE n` (use with caution)
+
+### File Storage Issues
+
+**Problem**: Files not being saved
+- Check `SAVE_RAW_DATA` environment variable (default: true)
+- Verify write permissions on `data/scraped/` directory
+- Check disk space
+
+**Problem**: Want to export files to cloud storage
+- Files are organized by vendor: `data/scraped/{vendor}/`
+- Easy to sync with `aws s3 sync`, `gsutil`, or `rclone`
+- Each file is self-contained JSON with all reference data
 
 ## Development Roadmap
 
