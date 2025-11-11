@@ -230,10 +230,19 @@ python scripts/test_pipeline.py
 ```
 
 This will:
-1. Scrape Snowflake customer references (currently limited to 3 pages, ~25 case studies)
-2. Load raw data into Neo4j
-3. Classify references with Gemini
-4. Display statistics
+1. Scrape Snowflake customer references (currently limited to 25 case studies)
+2. Save each reference as individual JSON file in `data/scraped/{vendor}/` (backup/local storage)
+3. Load raw data into Neo4j
+4. Classify references with Gemini
+5. Display statistics
+
+**File Storage**: Each reference is saved as `{customer-slug}-{timestamp}.json` in `data/scraped/{vendor}/`. This enables:
+- Local backups of all scraped content
+- Easy export to cloud storage (S3, GCS, etc.)
+- Version control of individual stories
+- Incremental updates without re-scraping everything
+
+To disable file saving, set `SAVE_RAW_DATA=false` in your environment.
 
 ### Test Single Page Scraping
 
