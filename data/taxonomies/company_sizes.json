@@ -1,0 +1,10 @@
+{
+  "company_sizes": [
+    "Enterprise (>5000 employees)",
+    "Mid-Market (500-5000 employees)",
+    "SMB (<500 employees)",
+    "Startup",
+    "Unknown"
+  ]
+}
+

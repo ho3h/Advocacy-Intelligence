@@ -1,0 +1,20 @@
+{
+  "use_cases": [
+    "Real-time Analytics",
+    "Data Migration",
+    "Data Lakehouse/Data Lake",
+    "ML/AI & Predictive Analytics",
+    "Data Governance & Compliance",
+    "Customer 360",
+    "Fraud Detection",
+    "Supply Chain Optimization",
+    "Business Intelligence & Reporting",
+    "Data Integration/ETL",
+    "IoT & Sensor Data",
+    "Recommendation Engines",
+    "Financial Analytics",
+    "Operational Analytics",
+    "Data Sharing/Collaboration"
+  ]
+}
+
