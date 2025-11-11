@@ -166,18 +166,50 @@ CREATE INDEX reference_url IF NOT EXISTS FOR (r:Reference) ON (r.url)
 
 ### Task: Debug Graph Data
 
-Use Neo4j Browser (accessible from AuraDB console):
-```cypher// Count references by vendor
+**Preferred Method: Use Neo4j MCP Tools**
+
+Always use the Neo4j Cypher MCP tools (`mcp_neo4j-database_read_neo4j_cypher` and `mcp_neo4j-database_write_neo4j_cypher`) for querying the database. These tools provide direct access without needing to write Python code.
+
+**For read queries:**
+- Use `mcp_neo4j-database_read_neo4j_cypher` for SELECT/MATCH queries
+- Returns results as structured data
+- No need to manage Neo4j client connections
+
+**For write queries:**
+- Use `mcp_neo4j-database_write_neo4j_cypher` for CREATE/UPDATE/DELETE operations
+- Use with caution - prefer idempotent operations
+
+**For schema inspection:**
+- Use `mcp_neo4j-database_get_neo4j_schema` to understand the current database structure
+- Helps verify data model matches expectations
+
+**For data modeling:**
+- Use `mcp_neo4j-data-modeling_*` tools for validating and managing data models
+- Useful when adding new node types or relationships
+
+**Example queries using MCP:**
+```cypher
+// Count references by vendor
 MATCH (v:Vendor)-[:PUBLISHED]->(r:Reference)
 RETURN v.name, count(r) as ref_count
-ORDER BY ref_count DESC// Find unclassified references
+ORDER BY ref_count DESC
+
+// Find unclassified references
 MATCH (r:Reference)
 WHERE r.classified = false
 RETURN r.url, r.scraped_date
-LIMIT 10// Check a specific customer's data
+LIMIT 10
+
+// Check a specific customer's data
 MATCH (c:Customer {name: "Capital One"})<-[:FEATURES]-(r:Reference)
 MATCH (r)-[:ADDRESSES_USE_CASE]->(uc:UseCase)
 RETURN c, r, collect(uc.name) as use_cases
+```
+
+**Alternative: Neo4j Browser** (accessible from AuraDB console)
+- Use for visual exploration and ad-hoc queries
+- Good for manual inspection and debugging
+- Not suitable for automated queries or scripts
 
 ## Common Pitfalls to Avoid
 
@@ -248,6 +280,37 @@ For v1, keep testing simple:
 
 Automated tests can come in v2.
 
+## Database Query Best Practices
+
+### Always Use Neo4j MCP Tools
+
+When querying the Neo4j database, **always prefer MCP tools** over writing Python code:
+
+1. **For read queries**: Use `mcp_neo4j-database_read_neo4j_cypher`
+   - Direct Cypher query execution
+   - Returns structured results
+   - No connection management needed
+
+2. **For schema inspection**: Use `mcp_neo4j-database_get_neo4j_schema`
+   - Understand current database structure
+   - Check node counts and relationships
+   - Verify indexes exist
+
+3. **For data modeling**: Use `mcp_neo4j-data-modeling_*` tools
+   - Validate data models before implementation
+   - Export/import data models
+   - Generate Cypher queries for ingestion
+
+4. **For write operations**: Use `mcp_neo4j-database_write_neo4j_cypher` sparingly
+   - Prefer idempotent operations (MERGE over CREATE)
+   - Use Python Neo4jClient for complex multi-step operations
+
+**Example workflow:**
+1. Use `get_neo4j_schema` to understand current structure
+2. Use `read_neo4j_cypher` to query data
+3. Use `write_neo4j_cypher` only for simple updates
+4. Use Python `Neo4jClient` for complex classification updates
+
 ## When to Ask for Help
 
 If you encounter:
@@ -257,6 +320,7 @@ If you encounter:
 - Classification accuracy below 80% after prompt tuning
 - Data model questions (e.g., should this be a node or property?)
 - Outcome nodes with null metrics (ensure metric is always a string, even if empty)
+- MCP tool connection issues (check Neo4j credentials in environment)
 
 Flag it and ask rather than guessing.
 
