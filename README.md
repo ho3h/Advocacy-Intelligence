@@ -100,7 +100,11 @@ Advocacy-Intelligence/
 │   │   ├── industries.json
 │   │   ├── use_cases.json
 │   │   └── company_sizes.json
-│   └── scraped/             # Raw scraped data (gitignored)
+│   ├── scraped/             # Individual reference files (gitignored)
+│   │   └── {vendor}/         # Organized by vendor name
+│   │       └── {customer-slug}-{timestamp}.json
+│   └── schema/              # Data model definitions
+│       └── data_model.json
 ├── scripts/                 # Orchestration scripts
 │   ├── test_pipeline.py    # Full pipeline: scrape → load → classify
 │   └── verify_setup.py     # Verify environment setup
@@ -277,6 +281,7 @@ Required:
 Optional:
 - `HYPERBROWSER_API_KEY` - For fallback scraping (highly recommended)
 - `SCRAPE_DELAY_SECONDS` - Delay between requests (default: 2)
+- `SAVE_RAW_DATA` - Save individual reference files (default: true, set to false to disable)
 
 ### Scraper Configuration
 
