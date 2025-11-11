@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from scrapers.snowflake_scraper import SnowflakeScraper
 from graph.neo4j_client import Neo4jClient
 from classifiers.gemini_classifier import ReferenceClassifier
+from utils.file_storage import save_reference_file
 
 
 def main():
@@ -44,25 +45,26 @@ def main():
     
     print(f"✓ Scraped {len(references)} references")
     
-    # Optionally save raw data for inspection/debugging (not required - data is in Neo4j)
-    save_raw = os.getenv('SAVE_RAW_DATA', 'false').lower() == 'true'
-    if save_raw:
-        os.makedirs('data/scraped', exist_ok=True)
-        with open('data/scraped/snowflake_raw.json', 'w') as f:
-            json.dump(references, f, indent=2)
-        print("✓ Saved raw data to data/scraped/snowflake_raw.json")
-    else:
-        print("ℹ Raw data not saved (set SAVE_RAW_DATA=true to enable)")
-    
-    # Step 2: Load raw data to Neo4j
-    print("\n3. Loading raw data to Neo4j...")
+    # Step 2: Save individual reference files and load to Neo4j
+    print("\n3. Saving reference files and loading to Neo4j...")
+    save_files = os.getenv('SAVE_RAW_DATA', 'true').lower() == 'true'  # Default to true now
     loaded_count = 0
     skipped_count = 0
+    saved_count = 0
+    
+    vendor_name = 'Snowflake'
     
     for ref in references:
+        # Save individual reference file (organized by vendor)
+        if save_files:
+            filepath = save_reference_file(vendor_name, ref)
+            if filepath:
+                saved_count += 1
+        
+        # Load to Neo4j
         try:
             ref['vendor_website'] = 'https://www.snowflake.com'
-            ref_id = db.load_raw_reference('Snowflake', ref)
+            ref_id = db.load_raw_reference(vendor_name, ref)
             if ref_id:
                 loaded_count += 1
                 print(f"✓ Loaded {ref['customer_name']} (ID: {ref_id})")
@@ -75,6 +77,8 @@ def main():
     print(f"\n✓ Loaded {loaded_count}/{len(references)} references to database")
     if skipped_count > 0:
         print(f"⚠ Skipped {skipped_count} duplicate URLs")
+    if save_files:
+        print(f"✓ Saved {saved_count} reference files to data/scraped/{vendor_name.lower()}/")
     
     # Step 3: Classify references
     print("\n4. Classifying references with Gemini...")
