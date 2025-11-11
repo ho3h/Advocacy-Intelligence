@@ -96,7 +96,8 @@ Advocacy-Intelligence/
 │   │   ├── __init__.py
 │   │   └── neo4j_client.py  # Database operations
 │   └── utils/               # Utility functions
-│       └── __init__.py
+│       ├── __init__.py
+│       └── file_storage.py   # Individual reference file storage
 ├── data/
 │   ├── taxonomies/          # Classification taxonomies (JSON)
 │   │   ├── industries.json
