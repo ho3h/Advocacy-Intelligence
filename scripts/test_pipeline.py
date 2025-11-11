@@ -44,11 +44,15 @@ def main():
     
     print(f"✓ Scraped {len(references)} references")
     
-    # Save raw data for inspection
-    os.makedirs('data/scraped', exist_ok=True)
-    with open('data/scraped/snowflake_raw.json', 'w') as f:
-        json.dump(references, f, indent=2)
-    print("✓ Saved raw data to data/scraped/snowflake_raw.json")
+    # Optionally save raw data for inspection/debugging (not required - data is in Neo4j)
+    save_raw = os.getenv('SAVE_RAW_DATA', 'false').lower() == 'true'
+    if save_raw:
+        os.makedirs('data/scraped', exist_ok=True)
+        with open('data/scraped/snowflake_raw.json', 'w') as f:
+            json.dump(references, f, indent=2)
+        print("✓ Saved raw data to data/scraped/snowflake_raw.json")
+    else:
+        print("ℹ Raw data not saved (set SAVE_RAW_DATA=true to enable)")
     
     # Step 2: Load raw data to Neo4j
     print("\n3. Loading raw data to Neo4j...")
