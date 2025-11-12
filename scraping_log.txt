@@ -1,0 +1,40 @@
+/Users/tedsandtads/Documents/GitHub/Advocacy-Intelligence/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+======================================================================
+SNOWFLAKE URL DISCOVERY (PHASE 1)
+======================================================================
+✓ HyperBrowser.ai initialized
+
+======================================================================
+PHASE 1: URL DISCOVERY
+======================================================================
+🔍 Discovering customer reference URLs from paginated pages...
+📄 Page size: 12 references per page
+📊 Max pages: Auto-detect (will stop when all found)
+⏱️  Estimated time: 5-15 minutes
+
+Starting pagination with strategy: OffsetPaginationStrategy
+  Fetching page 1 (https://www.snowflake.com/en/customers/all-customers/?page=0&pageSize=12&offset=...)
+    ✓ Found 0 links on this page (0 new, 0 duplicates)
+    No links found (1/2 consecutive empty)
+  Fetching page 2 (https://www.snowflake.com/en/customers/all-customers/?page=1&pageSize=12&offset=...)
+    ✓ Found 12 links on this page (12 new, 0 duplicates)
+    ⚠ All URLs on this page were already seen (looped back)
+    Stopping pagination (found 12 total unique URLs)
+
+✓ Found 12 total unique URLs across 1 pages
+
+======================================================================
+URL DISCOVERY SUMMARY
+======================================================================
+✓ Found 12 unique customer reference URLs
+⏱️  Discovery time: 0.2 minutes (13 seconds)
+======================================================================
+
+
+💾 Saved 12 URLs to: data/scraped/snowflake/discovered_urls-20251111-202830.json
+📁 Full path: /Users/tedsandtads/Documents/GitHub/Advocacy-Intelligence/data/scraped/snowflake/discovered_urls-20251111-202830.json
+📄 Also saved as text file: data/scraped/snowflake/discovered_urls-20251111-202830.txt
+
+✓ URL discovery complete! Found 12 customer reference URLs
+  Files saved in: data/scraped/snowflake/

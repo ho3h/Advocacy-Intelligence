@@ -11,7 +11,7 @@ This platform scrapes customer references from competitor websites, classifies t
 
 ## Features
 
-- **Web Scraping**: HyperBrowser.ai for JavaScript-rendered pages (BeautifulSoup always gets blocked by Cloudflare)
+- **Web Scraping**: HyperBrowser.ai for all scraping (required for JavaScript-rendered pages)
 - **Individual File Storage**: Each reference saved as `{customer-slug}-{timestamp}.json` organized by vendor folder
 - **AI Classification**: Google Gemini extracts structured data (industries, use cases, outcomes, personas, tech stacks)
 - **Graph Database**: Neo4j AuraDB stores relationships between vendors, customers, references, and metadata
@@ -23,9 +23,9 @@ This platform scrapes customer references from competitor websites, classifies t
 
 - **Python 3.11+** - Backend language
 - **Neo4j AuraDB Free** - Graph database (cloud-hosted Neo4j)
-- **Google Gemini API** - Content classification (auto-detects best available model)
-- **BeautifulSoup4** - Primary web scraping (free, fast)
-- **HyperBrowser.ai** - Fallback scraper for protected/JavaScript pages (optional)
+- **Google Gemini API** - Content classification (auto-detects best available model, prefers gemini-2.5-flash)
+- **HyperBrowser.ai** - Web scraping service (required for JavaScript-rendered pages)
+- **requests** - HTTP library for sitemap fetching
 - **python-dotenv** - Environment management
 
 ## Quick Start
@@ -35,7 +35,7 @@ This platform scrapes customer references from competitor websites, classifies t
 - Python 3.11+ (Python 3.9+ works but 3.11+ recommended)
 - Neo4j AuraDB Free instance ([sign up here](https://console.neo4j.io/))
 - Google API key for Gemini ([get here](https://makersuite.google.com/app/apikey))
-- HyperBrowser.ai API key ([optional, get here](https://hypeHyperBrowser.airbrowser.ai/))
+- HyperBrowser.ai API key ([required, get here](https://hyperbrowser.ai/))
 
 ### Installation
 
@@ -62,7 +62,7 @@ cp .env.example .env
 # Edit .env with your credentials:
 # - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 # - GOOGLE_API_KEY
-# - HYPERBROWSER_API_KEY (optional but recommended)
+# - HYPERBROWSER_API_KEY (required)
 ```
 
 5. **Verify setup:**
@@ -109,40 +109,83 @@ Advocacy-Intelligence/
 │   └── schema/              # Data model definitions
 │       └── data_model.json
 ├── scripts/                 # Orchestration scripts
+│   ├── discover_urls.py    # Phase 1: Snowflake URL discovery (pagination)
+│   ├── discover_urls_sitemap.py  # Phase 1: Sitemap-based discovery (MongoDB, Redis)
+│   ├── discover_urls_redis.py    # Phase 1: Redis URL discovery
+│   ├── scrape_phase2.py   # Phase 2: Snowflake content scraping
+│   ├── scrape_phase2_mongodb.py  # Phase 2: MongoDB content scraping
+│   ├── scrape_phase2_redis.py    # Phase 2: Redis content scraping
+│   ├── load_and_classify_mongodb.py  # Phase 3 & 4: MongoDB DB load + classify
+│   ├── query_mongodb_data.py    # Sample queries for MongoDB data
 │   ├── test_pipeline.py    # Full pipeline: scrape → load → classify
 │   └── verify_setup.py     # Verify environment setup
 └── docs/
-    └── HYBRID_SCRAPER.md    # Scraper documentation
+    ├── SCRAPING_PHASES.md   # Detailed phase documentation
+    ├── SITEMAP_DISCOVERY.md # Sitemap-based discovery guide
+    ├── MONGODB_PIPELINE_SUMMARY.md  # MongoDB pipeline results
+    └── MONGODB_DATA_INSIGHTS.md     # Data insights and analytics
 ```
 
 ## How It Works
 
-### 1. Scraping Phase
+The platform follows a **4-phase pipeline** for each vendor:
 
-The scraper uses **HyperBrowser.ai directly**:
+### Phase 1: URL Discovery
 
-- BeautifulSoup always gets blocked by Cloudflare, so we skip it entirely
-- HyperBrowser.ai handles JavaScript rendering and bypasses anti-bot protection
-- All case study and video pages require JavaScript to load content
+**Two approaches available:**
 
-**Snowflake Scraper**:
-- Discovers case study URLs from paginated listing pages: `/en/customers/all-customers/?page=0&pageSize=12&offset=0`
-- Extracts case study links matching pattern: `/customers/all-customers/case-study/{company}/`
-- Handles pagination automatically
-- Respects rate limits (2-second delays)
-- Filters out invalid URLs and low-quality scrapes (<100 words)
+#### Option A: Sitemap-Based Discovery (Preferred - Fast & Free!)
+- **Method**: Parse website sitemaps to extract customer reference URLs
+- **Speed**: ~10 seconds vs. hours with pagination
+- **Cost**: $0 (free!)
+- **Works for**: MongoDB, most modern websites
+- **Script**: `scripts/discover_urls_sitemap.py`
 
-### 1.5. File Storage Phase
+```bash
+python scripts/discover_urls_sitemap.py mongodb
+```
 
-After scraping, each reference is saved as an individual JSON file:
+#### Option B: Pagination-Based Discovery (Fallback)
+- **Method**: Iterate through paginated listing pages
+- **Speed**: Minutes to hours (depends on pages)
+- **Cost**: HyperBrowser.ai costs (~$0.01-0.05 per page)
+- **Works for**: Redis (Cloudflare protection), Snowflake
+- **Script**: `scripts/discover_urls.py` or `scripts/discover_urls_redis.py`
 
-- **Location**: `data/scraped/{vendor}/{customer-slug}-{timestamp}.json`
-- **Organization**: Files organized by vendor folder (e.g., `data/scraped/snowflake/`)
-- **Filename**: Generated from URL slug or customer name, with timestamp for uniqueness
-- **Purpose**: Local backup, easy export to cloud storage, version control
-- **Configurable**: Set `SAVE_RAW_DATA=false` to disable (default: true)
+**Output**: List of unique customer reference URLs saved to `data/scraped/{vendor}/discovered_urls-{timestamp}.json`
 
-### 2. Classification Phase
+### Phase 2: Content Scraping
+
+**Process**:
+- Uses **HyperBrowser.ai** for all scraping (required for JavaScript-rendered pages)
+- Fetches each reference URL and extracts content
+- Prefers markdown format, falls back to HTML
+- Filters low-quality scrapes (<100 words)
+- Rate limiting: 2-second delays between requests
+
+**Output**: Individual JSON files saved to `data/scraped/{vendor}/{customer-slug}-{timestamp}.json`
+
+**Scripts**:
+- `scripts/scrape_phase2.py` - Snowflake
+- `scripts/scrape_phase2_mongodb.py` - MongoDB
+- `scripts/scrape_phase2_redis.py` - Redis
+
+### Phase 3: Database Loading
+
+**Process**:
+- Loads scraped references from files into Neo4j
+- Creates Reference nodes with raw text
+- Links to Vendor nodes
+- URL deduplication (safe to re-run)
+- Sets `classified=false` flag
+
+**Output**: Reference nodes in Neo4j ready for classification
+
+**Scripts**:
+- `scripts/load_and_classify_mongodb.py` - MongoDB (includes classification)
+- `scripts/test_pipeline.py` - Snowflake (full pipeline)
+
+### Phase 4: Classification
 
 **Google Gemini Classifier**:
 - Auto-detects best available model (prefers `gemini-2.5-flash` for speed/cost)
@@ -155,8 +198,25 @@ After scraping, each reference is saved as an individual JSON file:
   - Best customer quote
 - Uses predefined taxonomies for consistency
 - Handles rate limits with exponential backoff
+- Updates graph with relationships (Customer, Industry, UseCase, Outcome, etc.)
 
-### 3. Graph Storage
+**Output**: Fully classified and enriched graph data ready for similarity search
+
+### Complete Workflow Example
+
+```bash
+# MongoDB (using sitemap - fastest!)
+python scripts/discover_urls_sitemap.py mongodb      # Phase 1: ~10 seconds
+python scripts/scrape_phase2_mongodb.py              # Phase 2: ~36 minutes
+python scripts/load_and_classify_mongodb.py          # Phase 3 & 4: ~47 minutes
+
+# Snowflake (using pagination)
+python scripts/discover_urls.py                      # Phase 1: ~5-15 minutes
+python scripts/scrape_phase2.py                      # Phase 2: ~30-60 minutes
+python scripts/test_pipeline.py                      # Phase 3 & 4: ~10-20 minutes
+```
+
+### Graph Storage
 
 **Neo4j Graph Structure**:
 
@@ -237,20 +297,45 @@ erDiagram
 
 ## Usage Examples
 
-### Run Full Pipeline
+### MongoDB Pipeline (Recommended - Uses Sitemap)
 
 ```bash
+# Phase 1: Discover URLs via sitemap (~10 seconds, free!)
+python scripts/discover_urls_sitemap.py mongodb
+
+# Phase 2: Scrape content (~36 minutes, ~$5-12)
+python scripts/scrape_phase2_mongodb.py
+
+# Phase 3 & 4: Load to Neo4j and classify (~47 minutes, ~$0.23-2.34)
+python scripts/load_and_classify_mongodb.py
+```
+
+**Result**: 234 MongoDB references scraped, loaded, and classified!
+
+### Snowflake Pipeline (Pagination-Based)
+
+```bash
+# Phase 1: Discover URLs via pagination (~5-15 minutes)
+python scripts/discover_urls.py
+
+# Phase 2: Scrape content (~30-60 minutes)
+python scripts/scrape_phase2.py
+
+# Full pipeline (includes Phase 3 & 4)
 python scripts/test_pipeline.py
 ```
 
-This will:
-1. Scrape Snowflake customer references (currently limited to 25 case studies)
-2. Save each reference as individual JSON file in `data/scraped/{vendor}/` (backup/local storage)
-3. Load raw data into Neo4j
-4. Classify references with Gemini
-5. Display statistics
+### Redis Pipeline
 
-**File Storage**: Each reference is saved as `{customer-slug}-{timestamp}.json` in `data/scraped/{vendor}/`. This enables:
+```bash
+# Phase 1: Discover URLs (uses HyperBrowser.ai due to Cloudflare)
+python scripts/discover_urls_redis.py
+
+# Phase 2: Scrape content
+python scripts/scrape_phase2_redis.py
+```
+
+**File Storage**: Each reference is automatically saved as `{customer-slug}-{timestamp}.json` in `data/scraped/{vendor}/`. This enables:
 - Local backups of all scraped content
 - Easy export to cloud storage (S3, GCS, etc.)
 - Version control of individual stories
@@ -317,17 +402,23 @@ In `src/scrapers/snowflake_scraper.py`:
 
 ### Working Features
 
-✅ **Scraping**:
-- Paginated URL discovery from `/en/customers/all-customers/`
-- Case study URL extraction
-- Hybrid BeautifulSoup + HyperBrowser.ai scraping
+✅ **URL Discovery**:
+- **Sitemap-based discovery** (MongoDB, fast & free!)
+- Paginated URL discovery (Snowflake, Redis)
+- Automatic completion detection
+- URL filtering and deduplication
+
+✅ **Content Scraping**:
+- HyperBrowser.ai for all page fetching
 - Cloudflare bypass via HyperBrowser.ai
+- Quality filtering (<100 words skipped)
+- Individual file storage (organized by vendor)
 
 ✅ **Classification**:
-- Google Gemini integration
-- Auto model detection
+- Google Gemini integration (auto-detects best model)
 - Structured data extraction
 - Taxonomy-driven classification
+- 100% success rate on MongoDB (234/234)
 
 ✅ **Database**:
 - Neo4j connection and operations
@@ -335,19 +426,26 @@ In `src/scrapers/snowflake_scraper.py`:
 - Graph relationship creation
 - Statistics queries
 
-### Known Limitations
+✅ **Vendors Supported**:
+- **MongoDB**: 234 references (sitemap-based discovery)
+- **Snowflake**: 18 references (pagination-based)
+- **Redis**: 8 references discovered (pagination-based)
 
-- Currently limited to Snowflake (Databricks and others coming)
-- Pagination limited to 5 pages (~60 case studies) for testing
-- Some pages return short content (may need content extraction tuning)
-- Customer name extraction could be improved
-- Individual files are gitignored (use cloud storage for backup/versioning)
+### Current Data
+
+- **Total References**: 252 (234 MongoDB + 18 Snowflake)
+- **Total Customers**: 243 unique customers
+- **Total Use Cases**: 47 different use cases
+- **Total Industries**: 21 industries
+- **Total Outcomes**: 885 outcome records with metrics
+
+See `docs/MONGODB_DATA_INSIGHTS.md` for detailed analytics.
 
 ## Cost Estimates
 
 - **Neo4j AuraDB Free**: $0 (lifetime free tier)
 - **Google Gemini**: ~$0.001-0.01 per classification (gemini-2.5-flash is very affordable)
-- **HyperBrowser.ai**: ~$0.01-0.05 per page (only used when BeautifulSoup fails)
+- **HyperBrowser.ai**: ~$0.01-0.05 per page (required for all scraping)
 - **Total for 100 references**: ~$1-5 (mostly HyperBrowser.ai costs)
 
 ## Troubleshooting
@@ -356,7 +454,7 @@ In `src/scrapers/snowflake_scraper.py`:
 
 **Problem**: No URLs found
 - Check if Snowflake's page structure changed
-- Verify HyperBrowser.ai API key is set (required - BeautifulSoup doesn't work)
+- Verify HyperBrowser.ai API key is set (required)
 - Try manually visiting the paginated URL
 
 **Problem**: Content too short (~50 words)
@@ -402,26 +500,31 @@ In `src/scrapers/snowflake_scraper.py`:
 
 ## Development Roadmap
 
-### Phase 1: Proof of Concept (Current)
+### Phase 1: Proof of Concept ✅ (Complete)
 - ✅ Project structure
 - ✅ Snowflake scraper with pagination
+- ✅ MongoDB scraper with sitemap discovery
+- ✅ Redis scraper (pagination)
+- ✅ Sitemap-based URL discovery utility
 - ✅ Individual file storage (organized by vendor)
 - ✅ Gemini classifier
 - ✅ Neo4j integration
 - ✅ URL deduplication and quality filtering
-- ⏳ Data quality validation
+- ✅ 234 MongoDB references fully processed
+- ✅ Data exploration and insights
 
 ### Phase 2: Core Platform (Next)
-- Add Databricks scraper
-- Refine classification prompts
-- Build similarity search queries
-- Create basic Streamlit UI
+- ⏳ Build similarity search queries
+- ⏳ Create basic Streamlit UI
+- ⏳ Add Databricks scraper (try sitemap first!)
+- ⏳ Refine classification prompts (improve "Unknown" classifications)
+- ⏳ Add more vendors using sitemap approach
 
 ### Phase 3: Scale & Polish
 - Add 5+ more vendors
 - Advanced filtering and browsing
 - User testing
-- Documentation
+- Production deployment
 
 ## Contributing
 

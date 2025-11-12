@@ -36,7 +36,9 @@ def main():
     db.create_indexes()
     
     # Step 1: Scrape Snowflake
-    print("\n2. Scraping Snowflake customer references...")
+    print("\n" + "=" * 60)
+    print("STEP 2: SCRAPING SNOWFLAKE CUSTOMER REFERENCES")
+    print("=" * 60)
     references = scraper.scrape_all()
     
     if not references:
@@ -46,7 +48,9 @@ def main():
     print(f"✓ Scraped {len(references)} references")
     
     # Step 2: Save individual reference files and load to Neo4j
-    print("\n3. Saving reference files and loading to Neo4j...")
+    print("\n" + "=" * 60)
+    print("STEP 3: SAVING FILES AND LOADING TO NEO4J")
+    print("=" * 60)
     save_files = os.getenv('SAVE_RAW_DATA', 'true').lower() == 'true'  # Default to true now
     loaded_count = 0
     skipped_count = 0
@@ -54,7 +58,14 @@ def main():
     
     vendor_name = 'Snowflake'
     
-    for ref in references:
+    # Use tqdm if available for progress bar
+    try:
+        from tqdm import tqdm
+        ref_iterator = tqdm(references, desc="Loading to DB", unit="ref")
+    except ImportError:
+        ref_iterator = references
+    
+    for ref in ref_iterator:
         # Save individual reference file (organized by vendor)
         if save_files:
             filepath = save_reference_file(vendor_name, ref)
@@ -67,12 +78,15 @@ def main():
             ref_id = db.load_raw_reference(vendor_name, ref)
             if ref_id:
                 loaded_count += 1
-                print(f"✓ Loaded {ref['customer_name']} (ID: {ref_id})")
+                if 'tqdm' not in str(type(ref_iterator)):
+                    print(f"✓ Loaded {ref['customer_name']} (ID: {ref_id})")
             else:
                 skipped_count += 1
-                print(f"⚠ Skipped {ref['customer_name']} (URL already exists)")
+                if 'tqdm' not in str(type(ref_iterator)):
+                    print(f"⚠ Skipped {ref['customer_name']} (URL already exists)")
         except Exception as e:
-            print(f"✗ Failed to load {ref.get('customer_name', 'Unknown')}: {e}")
+            if 'tqdm' not in str(type(ref_iterator)):
+                print(f"✗ Failed to load {ref.get('customer_name', 'Unknown')}: {e}")
     
     print(f"\n✓ Loaded {loaded_count}/{len(references)} references to database")
     if skipped_count > 0:
@@ -81,17 +95,31 @@ def main():
         print(f"✓ Saved {saved_count} reference files to data/scraped/{vendor_name.lower()}/")
     
     # Step 3: Classify references
-    print("\n4. Classifying references with Gemini...")
+    print("\n" + "=" * 60)
+    print("STEP 4: CLASSIFYING REFERENCES WITH GEMINI")
+    print("=" * 60)
     
-    unclassified = db.get_unclassified_references(limit=100)
-    print(f"Found {len(unclassified)} unclassified references")
+    unclassified = db.get_unclassified_references(limit=1000)  # Increased limit
+    print(f"📋 Found {len(unclassified)} unclassified references")
+    
+    if len(unclassified) > 0:
+        print(f"⏱️  Estimated time: {len(unclassified) * 3 / 60:.1f} - {len(unclassified) * 5 / 60:.1f} minutes")
+        print(f"💰 Estimated cost: ${len(unclassified) * 0.001:.2f} - ${len(unclassified) * 0.01:.2f}\n")
     
     classified_count = 0
     failed_count = 0
     
-    for i, ref in enumerate(unclassified, 1):
-        print(f"\n[{i}/{len(unclassified)}] Classifying {ref['url'][:60]}...")
-        print(f"    Text length: {len(ref['text'])} chars")
+    # Use tqdm if available
+    try:
+        from tqdm import tqdm
+        unclassified_iterator = tqdm(enumerate(unclassified, 1), total=len(unclassified), desc="Classifying", unit="ref")
+    except ImportError:
+        unclassified_iterator = enumerate(unclassified, 1)
+    
+    for i, ref in unclassified_iterator:
+        if 'tqdm' not in str(type(unclassified_iterator)):
+            print(f"\n[{i}/{len(unclassified)}] Classifying {ref['url'][:60]}...")
+            print(f"    Text length: {len(ref['text'])} chars")
         
         try:
             classification = classifier.classify(ref['text'], ref['url'])
@@ -99,16 +127,19 @@ def main():
             if classification:
                 db.update_classification(ref['id'], classification)
                 classified_count += 1
-                print(f"✓ Classified as: {classification.get('customer_name')} | "
-                      f"{classification.get('industry')} | "
-                      f"{', '.join(classification.get('use_cases', [])[:2])}")
+                if 'tqdm' not in str(type(unclassified_iterator)):
+                    print(f"✓ Classified as: {classification.get('customer_name')} | "
+                          f"{classification.get('industry')} | "
+                          f"{', '.join(classification.get('use_cases', [])[:2])}")
             else:
                 failed_count += 1
-                print("✗ Classification failed")
+                if 'tqdm' not in str(type(unclassified_iterator)):
+                    print("✗ Classification failed")
                 
         except Exception as e:
             failed_count += 1
-            print(f"✗ Error: {e}")
+            if 'tqdm' not in str(type(unclassified_iterator)):
+                print(f"✗ Error: {e}")
     
     print(f"\n✓ Successfully classified {classified_count}/{len(unclassified)} references")
     if failed_count > 0:

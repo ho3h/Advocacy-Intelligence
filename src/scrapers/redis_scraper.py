@@ -1,4 +1,4 @@
-"""Scraper for Snowflake customer references using HyperBrowser.ai."""
+"""Scraper for Redis customer references using HyperBrowser.ai."""
 
 import time
 import os
@@ -19,6 +19,7 @@ except ImportError:
 from scrapers.pagination import (
     PaginationConfig,
     OffsetPaginationStrategy,
+    PageNumberPaginationStrategy,
     paginate_with_strategy
 )
 
@@ -34,15 +35,14 @@ except ImportError:
     HYPERBROWSER_AVAILABLE = False
 
 
-class SnowflakeScraper:
-    """Scrape customer references from Snowflake website.
+class RedisScraper:
+    """Scrape customer references from Redis website.
     
     Uses HyperBrowser.ai for all scraping. All pages require JavaScript rendering.
     """
     
-    BASE_URL = "https://www.snowflake.com"
-    CUSTOMERS_PAGE = "/en/why-snowflake/customers/"  # Main customers page
-    ALL_CUSTOMERS_BASE = "/en/customers/all-customers/"  # Paginated listing page
+    BASE_URL = "https://redis.io"
+    CUSTOMERS_PAGE = "/customers/"  # Main customers page
     
     # Common anti-bot indicators
     BLOCK_INDICATORS = [
@@ -80,8 +80,8 @@ class SnowflakeScraper:
             self.hb_client = Hyperbrowser(api_key=api_key)
             # Close any existing active sessions to avoid "maximum sessions" error
             self._close_active_sessions()
-            # Create a single session to reuse for all requests
-            self._create_session()
+            # Don't create a session upfront - let HyperBrowser create one on first request
+            # We'll track it and reuse it
             print("✓ HyperBrowser.ai initialized")
         except Exception as e:
             raise RuntimeError(f"Failed to initialize HyperBrowser.ai: {e}")
@@ -125,45 +125,42 @@ class SnowflakeScraper:
                 pass  # Ignore errors stopping session
     
     def _ensure_session_active(self):
-        """Ensure our session is still active, recreate if needed."""
-        if not self.session_id:
-            self._create_session()
-            return
-        
-        # Check if session is still active
+        """Ensure we have an active session, track it if HyperBrowser creates one."""
+        # Check for active sessions and track the first one
         try:
             sessions_response = self.hb_client.sessions.list()
             active_sessions = [s for s in sessions_response.sessions if s.status == 'active']
-            active_session_ids = {s.id for s in active_sessions}
             
-            if self.session_id not in active_session_ids:
-                # Our session is no longer active, create a new one
-                print(f"  ⚠ Session {self.session_id[:8]}... is no longer active, creating new session", flush=True)
-                self._create_session()
-            elif len(active_sessions) > 1:
-                # Multiple active sessions - close extras, keep only ours
-                for session in active_sessions:
-                    if session.id != self.session_id:
-                        try:
-                            self.hb_client.sessions.stop(session.id)
-                            print(f"  ⚠ Closed extra session {session.id[:8]}...", flush=True)
-                        except Exception:
-                            pass
+            if active_sessions:
+                # Track the first active session
+                if not self.session_id:
+                    self.session_id = active_sessions[0].id
+                    print(f"  ✓ Tracking existing session: {self.session_id[:8]}...", flush=True)
+                elif len(active_sessions) > 1:
+                    # Multiple active sessions - close extras, keep only ours
+                    for session in active_sessions:
+                        if session.id != self.session_id:
+                            try:
+                                self.hb_client.sessions.stop(session.id)
+                                print(f"  ⚠ Closed extra session {session.id[:8]}...", flush=True)
+                            except Exception:
+                                pass
+            # If no active sessions, HyperBrowser will create one on the next request
+            # We'll track it after the first request completes
         except Exception:
-            # If we can't check, try to create a new session
-            self._create_session()
+            # If we can't check, that's okay - HyperBrowser will handle it
+            pass
     
-    def _extract_case_study_links(self, html_content, base_url):
+    def _extract_customer_story_links(self, html_content, base_url):
         """
-        Extract case study URLs from raw HTML content using regex.
-        Excludes videos and the listing page itself.
+        Extract customer story URLs from raw HTML content using regex.
         
         Args:
             html_content: Raw HTML string
             base_url: Base URL for resolving relative links
             
         Returns:
-            Set of case study URLs (videos excluded)
+            Set of customer story URLs
         """
         links = set()
         
@@ -174,21 +171,34 @@ class SnowflakeScraper:
         for href in hrefs:
             href_lower = href.lower()
             
-            # Only include case study URLs (exclude videos)
-            # Must contain /case-study/ in the path
-            is_case_study = '/case-study/' in href_lower
+            # Redis customer stories are typically at /customers/{customer-name}/
+            # or might be in a different format - we'll need to check the actual page structure
+            # Common patterns:
+            # - /customers/{name}/
+            # - /customers/{name}
+            # - /customer-stories/{name}/
+            # - Links containing "customer" and a company name
             
-            if is_case_study:
-                # Exclude the base listing page
-                if href_lower not in ['/en/customers/all-customers/', '/customers/all-customers/']:
-                    # Ensure URL has a company name after /case-study/
-                    # Valid: /case-study/company-name/
-                    # Invalid: /case-study/ (no company name)
-                    parts = href.split('/')
-                    case_study_idx = [i for i, p in enumerate(parts) if 'case-study' in p.lower()]
-                    if case_study_idx and case_study_idx[0] + 1 < len(parts) and parts[case_study_idx[0] + 1]:
+            # Look for customer story links
+            # Pattern 1: /customers/{name} (not just /customers/)
+            if '/customers/' in href_lower and href_lower != '/customers/' and not href_lower.endswith('/customers'):
+                # Make sure it's not a filter or category link
+                if not any(skip in href_lower for skip in ['?', '#', 'industry=', 'region=', 'filter=']):
+                    # Exclude the base customers page
+                    if href_lower not in ['/customers/', '/customers']:
                         full_url = urljoin(base_url, href)
-                        links.add(full_url)
+                        # Make sure it's a customer story URL (has a company name after /customers/)
+                        parts = href.split('/')
+                        if 'customers' in parts:
+                            customers_idx = parts.index('customers')
+                            # Should have something after 'customers'
+                            if customers_idx + 1 < len(parts) and parts[customers_idx + 1]:
+                                links.add(full_url)
+            
+            # Pattern 2: /customer-stories/ or similar
+            elif '/customer-stories/' in href_lower or '/customer-story/' in href_lower:
+                full_url = urljoin(base_url, href)
+                links.add(full_url)
         
         return links
     
@@ -253,15 +263,153 @@ class SnowflakeScraper:
             print(f"    ✗ HyperBrowser.ai error: {type(e).__name__}: {e}", flush=True)
             return None
     
-    def get_customer_reference_urls(self, max_pages=None):
+    def _click_load_more_and_wait(self, url, max_clicks=50):
         """
-        Get list of customer reference URLs from paginated all-customers pages.
-        Uses HyperBrowser.ai for all scraping.
-        
-        Automatically detects when all pages are scraped using flexible pagination strategies.
+        Click "load more" button repeatedly until all content is loaded.
+        Uses HyperBrowser.ai computer_action.click to interact with the page.
         
         Args:
-            max_pages: Maximum number of paginated pages to scrape (None = no limit, auto-detect)
+            url: URL to load
+            max_clicks: Maximum number of "load more" clicks (safety limit)
+        
+        Returns:
+            Final HTML content after all "load more" clicks
+        """
+        print("  🔄 Loading all content (may need multiple fetches for 'Load More')...", flush=True)
+        
+        # Don't create a session upfront - let HyperBrowser create one automatically
+        # First, fetch the initial page
+        print("    → Loading initial page...", flush=True)
+        result = self.hb_client.scrape.start_and_wait(
+            StartScrapeJobParams(
+                url=url,
+                scrape_options=ScrapeOptions(
+                    formats=["html"],
+                    only_main_content=False
+                )
+            )
+        )
+        
+        # Track the session that was used/created
+        self._ensure_session_active()
+        
+        if hasattr(result, 'status') and result.status == 'failed':
+            error_msg = getattr(result, 'error', 'Unknown error')
+            print(f"    ✗ Failed to load page: {error_msg}", flush=True)
+            return None
+        
+        # Check for errors in result
+        if hasattr(result, 'error'):
+            print(f"    ✗ Error: {result.error}", flush=True)
+            return None
+        
+        # Extract initial HTML
+        html_content = None
+        if hasattr(result, 'data') and result.data and hasattr(result.data, 'html'):
+            html_content = result.data.html
+        
+        if not html_content:
+            print("    ✗ No HTML content extracted", flush=True)
+            return None
+        
+        all_links = self._extract_customer_story_links(html_content, self.BASE_URL)
+        print(f"    ✓ Initial page: Found {len(all_links)} customer story links", flush=True)
+        
+        # Now scroll/click "load more" buttons repeatedly
+        
+        for click_num in range(max_clicks):
+            # Find "load more" button using regex in HTML
+            load_more_patterns = [
+                r'<button[^>]*>.*?load\s+more.*?</button>',
+                r'<a[^>]*>.*?load\s+more.*?</a>',
+                r'<button[^>]*class="[^"]*load[^"]*more[^"]*"',
+                r'<button[^>]*data-testid="[^"]*load[^"]*more[^"]*"',
+            ]
+            
+            button_found = False
+            button_text = None
+            
+            for pattern in load_more_patterns:
+                match = re.search(pattern, html_content, re.IGNORECASE | re.DOTALL)
+                if match:
+                    button_found = True
+                    # Extract button text
+                    text_match = re.search(r'>([^<]*load\s+more[^<]*)<', match.group(0), re.IGNORECASE)
+                    if text_match:
+                        button_text = text_match.group(1).strip()
+                    break
+            
+            if not button_found:
+                # Try finding by text content in the HTML
+                if re.search(r'load\s+more|show\s+more', html_content, re.IGNORECASE):
+                    button_found = True
+                    button_text = "Load More"
+                else:
+                    print(f"    ✓ No 'load more' button found (click {click_num}), all content loaded", flush=True)
+                    break
+            
+            if button_found:
+                print(f"    → Attempting to load more content (attempt {click_num + 1})...", flush=True)
+                
+                # Try scrolling to bottom to trigger "load more" (many sites load on scroll)
+                try:
+                    # Scroll down significantly to trigger load more
+                    # scroll method signature: session, delta_x=0, delta_y=0
+                    self.hb_client.computer_action.scroll(
+                        session=self.session_id,
+                        delta_y=2000  # Scroll down a lot
+                    )
+                    time.sleep(3)  # Wait for content to load
+                    
+                    # Re-fetch the page to get updated HTML
+                    result = self.hb_client.scrape.start_and_wait(
+                        StartScrapeJobParams(
+                            url=url,
+                            scrape_options=ScrapeOptions(
+                                formats=["html"],
+                                only_main_content=False
+                            )
+                        )
+                    )
+                    
+                    # Track session again
+                    self._ensure_session_active()
+                    
+                    if hasattr(result, 'data') and result.data and hasattr(result.data, 'html'):
+                        html_content = result.data.html
+                        current_links = self._extract_customer_story_links(html_content, self.BASE_URL)
+                        new_links = current_links - all_links
+                        
+                        if new_links:
+                            all_links.update(new_links)
+                            print(f"    ✓ Found {len(new_links)} new links (total: {len(all_links)})", flush=True)
+                        else:
+                            print(f"    ⚠ No new links found after scroll {click_num + 1}", flush=True)
+                            # Try clicking the button directly if scrolling didn't work
+                            # We'd need button coordinates, which is complex
+                            # For now, if no new links after 2 scrolls, assume we're done
+                            if click_num >= 1:
+                                break
+                    else:
+                        print(f"    ⚠ Could not get updated HTML after scroll", flush=True)
+                        
+                except Exception as e:
+                    print(f"    ⚠ Error scrolling: {e}", flush=True)
+                    # If scrolling fails, we can't interact with the page
+                    break
+        
+        print(f"    ✓ Finished clicking. Total links found: {len(all_links)}", flush=True)
+        return html_content
+    
+    def get_customer_reference_urls(self, max_pages=None):
+        """
+        Get list of customer reference URLs from Redis customers page.
+        Uses HyperBrowser.ai for all scraping.
+        
+        Handles "load more" buttons to load all customer stories.
+        
+        Args:
+            max_pages: Not used for Redis (uses "load more" instead)
         
         Returns:
             List of full URLs to customer reference pages
@@ -274,53 +422,35 @@ class SnowflakeScraper:
             print("✗ HyperBrowser.ai not available - cannot fetch URLs")
             return []
         
-        print("🔍 Discovering customer reference URLs from paginated pages...")
-        print(f"📄 Page size: 12 references per page")
-        if max_pages:
-            print(f"📊 Max pages: {max_pages}")
-        else:
-            print(f"📊 Max pages: Auto-detect (will stop when all found)")
-        print(f"⏱️  Estimated time: 5-15 minutes\n")
+        print("🔍 Discovering customer reference URLs from Redis customers page...")
+        print(f"📄 URL: {self.BASE_URL}{self.CUSTOMERS_PAGE}")
+        print(f"⏱️  Estimated time: 5-10 minutes (clicking 'Load More' buttons)\n")
         
         start_time = time.time()
         
-        # Configure pagination strategy for Snowflake
-        strategy = OffsetPaginationStrategy(
-            pagination_path="/en/customers/all-customers/",
-            page_param="page",
-            page_size_param="pageSize",
-            offset_param="offset"
-        )
+        # Fetch the main customers page and click "load more" until all content is loaded
+        customers_url = urljoin(self.BASE_URL, self.CUSTOMERS_PAGE)
         
-        # Configure pagination behavior
-        config = PaginationConfig(
-            page_size=12,
-            max_pages=max_pages,
-            max_consecutive_empty=2,
-            check_duplicates=True,
-            check_empty_pages=True
-        )
+        # Use the load more functionality
+        final_html = self._click_load_more_and_wait(customers_url, max_clicks=50)
         
-        # Use generic pagination function
-        urls = paginate_with_strategy(
-            strategy=strategy,
-            link_extractor=self._extract_case_study_links,
-            page_fetcher=self._fetch_page_with_hyperbrowser,
-            base_url=self.BASE_URL,
-            config=config,
-            verbose=True
-        )
+        if not final_html:
+            print("✗ Failed to fetch customers page")
+            return []
+        
+        # Extract all customer story links from the final page
+        all_links = self._extract_customer_story_links(final_html, self.BASE_URL)
         
         elapsed_time = time.time() - start_time
         
         print("\n" + "=" * 70, flush=True)
         print("URL DISCOVERY SUMMARY", flush=True)
         print("=" * 70, flush=True)
-        print(f"✓ Found {len(urls)} unique customer reference URLs", flush=True)
+        print(f"✓ Found {len(all_links)} unique customer reference URLs", flush=True)
         print(f"⏱️  Discovery time: {elapsed_time/60:.1f} minutes ({elapsed_time:.0f} seconds)", flush=True)
         print("=" * 70 + "\n", flush=True)
         
-        return urls
+        return list(all_links)
     
     def _scrape_with_hyperbrowser(self, url):
         """
@@ -400,29 +530,29 @@ class SnowflakeScraper:
                 # Look for company names in title-like lines (all caps or title case)
                 elif len(line) > 5 and len(line) < 100:
                     # Check if it looks like a company name (has common company words)
-                    if any(word in line.lower() for word in ['uses', 'with', 'customer', 'case study', 'success']):
+                    if any(word in line.lower() for word in ['uses', 'with', 'customer', 'case study', 'success', 'story']):
                         # Extract company name (usually before "uses" or "with")
-                        parts = re.split(r'\s+(?:uses|with|customer|case study|success)', line, flags=re.IGNORECASE)
+                        parts = re.split(r'\s+(?:uses|with|customer|case study|success|story)', line, flags=re.IGNORECASE)
                         if parts and parts[0]:
                             potential_name = parts[0].strip()
                             if len(potential_name) > 3 and len(potential_name) < 50:
                                 customer_name = potential_name
                                 break
             
-            # Fallback: try to extract from URL (case-study URLs have company name at the end)
+            # Fallback: try to extract from URL (customer URLs have company name)
             if customer_name == "Unknown":
                 url_parts = url.split('/')
-                # Look for company name in case-study URLs: .../case-study/{company}/
-                if '/case-study/' in url:
-                    case_study_idx = url_parts.index('case-study') if 'case-study' in url_parts else -1
-                    if case_study_idx >= 0 and case_study_idx + 1 < len(url_parts):
-                        company_part = url_parts[case_study_idx + 1]
+                # Look for company name in customer URLs: .../customers/{company}/
+                if '/customers/' in url:
+                    customers_idx = url_parts.index('customers') if 'customers' in url_parts else -1
+                    if customers_idx >= 0 and customers_idx + 1 < len(url_parts):
+                        company_part = url_parts[customers_idx + 1]
                         if company_part:
                             customer_name = company_part.replace('-', ' ').title()
                 else:
                     # Fallback: look for company-like segments in URL
                     for part in reversed(url_parts):
-                        if part and part not in ['customers', 'all-customers', 'video', 'case-study', 'en', 'www.snowflake.com', 'https:', '']:
+                        if part and part not in ['customers', 'customer-stories', 'customer-story', 'redis.io', 'https:', '']:
                             # Clean up the part (remove hyphens, make title case)
                             potential_name = part.replace('-', ' ').title()
                             if len(potential_name) > 2:
@@ -471,117 +601,17 @@ class SnowflakeScraper:
             if not TQDM_AVAILABLE:  # Only print errors if not using tqdm (tqdm handles its own output)
                 print(f"  ✗ HyperBrowser.ai failed: {hb_error}", flush=True)
             return None
-    
-    def scrape_all(self):
-        """
-        Scrape all customer references.
-        Filters out invalid URLs and low-quality scrapes.
-        
-        Returns:
-            List of reference dicts
-        """
-        print("\n" + "=" * 70, flush=True)
-        print("PHASE 2: CONTENT SCRAPING", flush=True)
-        print("=" * 70, flush=True)
-        
-        urls = self.get_customer_reference_urls()
-        total_urls = len(urls)
-        
-        if total_urls == 0:
-            print("✗ No URLs found to scrape", flush=True)
-            return []
-        
-        print(f"\n📋 Found {total_urls} URLs to scrape", flush=True)
-        print(f"⏱️  Estimated time: {total_urls * (self.delay + 15) / 60:.1f} - {total_urls * (self.delay + 30) / 60:.1f} minutes", flush=True)
-        print(f"💰 Estimated cost: ${total_urls * 0.02:.2f} - ${total_urls * 0.05:.2f}\n", flush=True)
-        
-        references = []
-        skipped_invalid = 0
-        skipped_low_quality = 0
-        failed = 0
-        start_time = time.time()
-        
-        # Use tqdm if available, otherwise simple counter
-        if TQDM_AVAILABLE:
-            url_iterator = tqdm(enumerate(urls, 1), total=total_urls, desc="Scraping", unit="page")
-        else:
-            url_iterator = enumerate(urls, 1)
-        
-        for i, url in url_iterator:
-            # Filter out invalid URLs (must be case-study, exclude videos)
-            url_lower = url.lower()
-            if not '/case-study/' in url_lower:
-                skipped_invalid += 1
-                if not TQDM_AVAILABLE:
-                    print(f"  ⚠ [{i}/{total_urls}] Skipping non-case-study URL: {url[:60]}...")
-                continue
-            
-            # Skip the base listing page
-            if url_lower.endswith('/all-customers/') or url_lower.endswith('/all-customers'):
-                skipped_invalid += 1
-                if not TQDM_AVAILABLE:
-                    print(f"  ⚠ [{i}/{total_urls}] Skipping listing page")
-                continue
-            
-            # Show progress
-            if not TQDM_AVAILABLE:
-                elapsed = time.time() - start_time
-                rate = i / elapsed if elapsed > 0 else 0
-                remaining = (total_urls - i) / rate if rate > 0 else 0
-                print(f"\n[{i}/{total_urls}] ({i/total_urls*100:.1f}%) | "
-                      f"Elapsed: {elapsed/60:.1f}m | "
-                      f"ETA: {remaining/60:.1f}m | "
-                      f"Success: {len(references)}", flush=True)
-                print(f"  📄 Scraping: {url[:70]}...", flush=True)
-            
-            ref_data = self.scrape_reference(url)
-            if ref_data:
-                # Filter out low-quality scrapes (too short, likely failed)
-                if ref_data['word_count'] < 100:
-                    skipped_low_quality += 1
-                    if not TQDM_AVAILABLE:
-                        print(f"  ⚠ Skipping low-quality scrape ({ref_data['word_count']} words)", flush=True)
-                    continue
-                
-                references.append(ref_data)
-                if not TQDM_AVAILABLE:
-                    print(f"  ✓ Successfully scraped: {ref_data['customer_name']} ({ref_data['word_count']} words)", flush=True)
-            else:
-                failed += 1
-                if not TQDM_AVAILABLE:
-                    print(f"  ✗ Failed to scrape", flush=True)
-            
-            # Be respectful - wait between requests
-            if i < total_urls:
-                time.sleep(self.delay)
-        
-        elapsed_time = time.time() - start_time
-        
-        print("\n" + "=" * 70, flush=True)
-        print("SCRAPING SUMMARY", flush=True)
-        print("=" * 70, flush=True)
-        print(f"✓ Successfully scraped: {len(references)} references", flush=True)
-        print(f"⚠ Skipped (invalid URL): {skipped_invalid}", flush=True)
-        print(f"⚠ Skipped (low quality): {skipped_low_quality}", flush=True)
-        print(f"✗ Failed: {failed}", flush=True)
-        print(f"⏱️  Total time: {elapsed_time/60:.1f} minutes ({elapsed_time:.0f} seconds)", flush=True)
-        if len(references) > 0:
-            print(f"📊 Average time per reference: {elapsed_time/len(references):.1f} seconds", flush=True)
-        print("=" * 70 + "\n", flush=True)
-        
-        return references
 
 
 if __name__ == '__main__':
     # Test scraper
-    scraper = SnowflakeScraper()
-    references = scraper.scrape_all()
+    scraper = RedisScraper()
+    urls = scraper.get_customer_reference_urls()
     
     # Show sample
-    if references:
-        print("\nSample reference:")
-        sample = references[0]
-        print(f"Customer: {sample['customer_name']}")
-        print(f"URL: {sample['url']}")
-        print(f"Text preview: {sample['raw_text'][:200]}...")
+    if urls:
+        print(f"\nFound {len(urls)} customer reference URLs")
+        print(f"\nSample URLs:")
+        for url in list(urls)[:5]:
+            print(f"  - {url}")
 

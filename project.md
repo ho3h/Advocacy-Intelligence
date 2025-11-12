@@ -61,7 +61,7 @@ These are graph traversal and pattern matching problems that are awkward in rela
 
 ### Core Features for V1
 
-1. **Web Scraper**: Extract customer references from vendor websites (hybrid BeautifulSoup + HyperBrowser.ai approach)
+1. **Web Scraper**: Extract customer references from vendor websites (uses HyperBrowser.ai for all scraping)
 2. **AI Classifier**: Use Google Gemini to extract structured data from raw reference text
 3. **Graph Loader**: Load structured data into Neo4j (AuraDB Free)
 4. **Similarity Search**: Find customer references that match a prospect profile
@@ -83,7 +83,7 @@ These are graph traversal and pattern matching problems that are awkward in rela
 - **Language**: Python 3.11+
 - **Graph Database**: Neo4j AuraDB Free Tier
 - **LLM**: Google Gemini API (auto-detects best available model, prefers gemini-2.5-flash)
-- **Web Scraping**: BeautifulSoup4 (primary), HyperBrowser.ai (fallback for protected/JS-heavy sites)
+- **Web Scraping**: HyperBrowser.ai (required for JavaScript-rendered pages)
 - **Frontend**: Streamlit (planned)
 - **Environment Management**: python-venv with python-dotenv
 
@@ -111,7 +111,7 @@ These are graph traversal and pattern matching problems that are awkward in rela
 (Customer)-[:USES_TECH]->(Technology)
 
 ### Data Flow
-Scrape → Raw HTML/Text (BeautifulSoup primary, HyperBrowser.ai fallback)
+Scrape → Raw HTML/Text (HyperBrowser.ai)
 Load Raw → Neo4j (with classified=false flag)
 Classify → Use Google Gemini to extract structured data
 Enrich Graph → Create nodes and relationships from classification
