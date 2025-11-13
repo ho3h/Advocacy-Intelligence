@@ -1,6 +1,7 @@
 """Neo4j database client for customer reference intelligence."""
 
 import re
+from typing import Optional
 
 from neo4j import GraphDatabase
 import os
@@ -163,7 +164,7 @@ class Neo4jClient:
             ref_id: Reference ID
             classification_data: Dict with structured enrichment data from the classifier.
         """
-        def _slugify(value: str | None) -> str | None:
+        def _slugify(value: Optional[str]) -> Optional[str]:
             """Convert a string into a lowercase, hyphenated slug."""
             if not value:
                 return None
