@@ -1,5 +1,7 @@
 """Neo4j database client for customer reference intelligence."""
 
+import re
+
 from neo4j import GraphDatabase
 import os
 from dotenv import load_dotenv
@@ -58,6 +60,24 @@ class Neo4jClient:
             session.run("""
                 CREATE INDEX vendor_name IF NOT EXISTS 
                 FOR (v:Vendor) ON (v.name)
+            """)
+            
+            # Account name index
+            session.run("""
+                CREATE INDEX account_name IF NOT EXISTS 
+                FOR (a:Account) ON (a.name)
+            """)
+            
+            # Champion id index
+            session.run("""
+                CREATE INDEX champion_id IF NOT EXISTS 
+                FOR (c:Champion) ON (c.id)
+            """)
+            
+            # Material id index
+            session.run("""
+                CREATE INDEX material_id IF NOT EXISTS 
+                FOR (m:Material) ON (m.id)
             """)
             
             print("✓ Indexes created")
@@ -141,52 +161,180 @@ class Neo4jClient:
         
         Args:
             ref_id: Reference ID
-            classification_data: Dict with customer_name, industry, size, region, 
-                                use_cases, tech_stack, quoted_text, outcomes, personas, etc.
+            classification_data: Dict with structured enrichment data from the classifier.
         """
+        def _slugify(value: str | None) -> str | None:
+            """Convert a string into a lowercase, hyphenated slug."""
+            if not value:
+                return None
+            slug = re.sub(r'[^a-z0-9]+', '-', value.strip().lower())
+            slug = re.sub(r'-{2,}', '-', slug).strip('-')
+            return slug or None
+        
         with self.driver.session() as session:
-            # Update reference and create customer
+            customer_name = classification_data.get('customer_name') or 'Unknown'
+            industry = classification_data.get('industry') or 'Other'
+            company_size = classification_data.get('company_size') or 'Unknown'
+            region = classification_data.get('region')
+            country = classification_data.get('country')
+            account_details = classification_data.get('account_details') or {}
+            logo_url = account_details.get('logo_url')
+            website = account_details.get('website')
+            account_summary = account_details.get('summary')
+            account_tagline = account_details.get('tagline')
+            quoted_text = classification_data.get('quoted_text', '')
+            use_cases = [uc for uc in (classification_data.get('use_cases') or []) if uc]
+            tech_stack = [tech for tech in (classification_data.get('tech_stack') or []) if tech]
+            outcomes = classification_data.get('outcomes') or []
+            personas = classification_data.get('personas') or []
+            champions = classification_data.get('champions') or []
+            materials_input = classification_data.get('materials') or []
+            
+            primary_material = materials_input[0] if materials_input else {}
+            primary_challenge = primary_material.get('challenge')
+            primary_solution = primary_material.get('solution')
+            primary_impact = primary_material.get('impact')
+            primary_pitch = primary_material.get('elevator_pitch')
+            primary_proof_points = [pp for pp in (primary_material.get('proof_points') or []) if pp]
+            primary_language = primary_material.get('language')
+            primary_region = primary_material.get('region')
+            primary_country = primary_material.get('country')
+            primary_product = primary_material.get('product')
+            primary_quotes = [q for q in (primary_material.get('quotes') or []) if q]
+            
+            if not primary_region or primary_region == 'Unknown':
+                primary_region = region if region and region != 'Unknown' else None
+            if not primary_country:
+                primary_country = country
+            if not primary_language:
+                primary_language = 'Unknown'
+            
+            material_ids: list[str] = []
+            normalized_materials: list[dict] = []
+            for material in materials_input:
+                base_id = material.get('material_id') or material.get('url') or ref_id
+                if base_id == ref_id and material.get('title'):
+                    base_id = f"{customer_name}-{material.get('title')}"
+                material_id = _slugify(str(base_id)) or _slugify(f"{customer_name}-{ref_id}") or ref_id
+                
+                normalized = {
+                    'material_id': material_id,
+                    'title': material.get('title'),
+                    'content_type': material.get('content_type'),
+                    'publish_date': material.get('publish_date'),
+                    'url': material.get('url'),
+                    'raw_text_excerpt': material.get('raw_text_excerpt'),
+                    'country': material.get('country') or primary_country,
+                    'region': material.get('region') or primary_region or 'Unknown',
+                    'language': material.get('language') or primary_language,
+                    'product': material.get('product') or primary_product,
+                    'challenge': material.get('challenge') or primary_challenge,
+                    'solution': material.get('solution') or primary_solution,
+                    'impact': material.get('impact') or primary_impact,
+                    'elevator_pitch': material.get('elevator_pitch') or primary_pitch,
+                    'proof_points': [pp for pp in (material.get('proof_points') or []) if pp],
+                    'quotes': [q for q in (material.get('quotes') or []) if q],
+                    'champion_role': material.get('champion_role'),
+                    'embedding': material.get('embedding')
+                }
+                normalized_materials.append(normalized)
+                material_ids.append(material_id)
+            
+            if not material_ids:
+                fallback_material_id = _slugify(f"{customer_name}-{ref_id}") or ref_id
+                material_ids.append(fallback_material_id)
+            else:
+                material_ids = list(dict.fromkeys(material_ids))
+            
+            account_region = region if region and region != 'Unknown' else None
+            account_country = country
+            if not primary_region:
+                primary_region = 'Unknown'
+            if not primary_country:
+                primary_country = account_country
+            
             session.run("""
                 MATCH (r:Reference {id: $ref_id})
+                OPTIONAL MATCH (r)<-[:PUBLISHED]-(vendor:Vendor)
                 SET r.classified = true,
                     r.classification_date = datetime(),
-                    r.quoted_text = $quoted_text
-                
-                WITH r
-                MERGE (c:Customer {name: $customer_name})
-                SET c.size = $size,
-                    c.region = $region,
-                    c.country = $country
-                MERGE (r)-[:FEATURES]->(c)
-                
-                WITH r, c
-                MERGE (i:Industry {name: $industry})
-                MERGE (c)-[:IN_INDUSTRY]->(i)
+                    r.quoted_text = $quoted_text,
+                    r.challenge = COALESCE($primary_challenge, r.challenge),
+                    r.solution = COALESCE($primary_solution, r.solution),
+                    r.impact = COALESCE($primary_impact, r.impact),
+                    r.elevator_pitch = COALESCE($primary_pitch, r.elevator_pitch),
+                    r.proof_points = CASE 
+                        WHEN $primary_proof_points = [] THEN r.proof_points
+                        ELSE $primary_proof_points
+                    END,
+                    r.language = COALESCE($primary_language, r.language),
+                    r.region = COALESCE($primary_region, r.region),
+                    r.country = COALESCE($primary_country, r.country),
+                    r.product_focus = COALESCE($primary_product, r.product_focus),
+                    r.material_ids = $material_ids,
+                    r.additional_quotes = CASE 
+                        WHEN $primary_quotes = [] THEN r.additional_quotes
+                        ELSE $primary_quotes
+                    END
+                WITH r, vendor
+                MERGE (account:Account:Customer {name: $customer_name})
+                SET account.size = $company_size,
+                    account.region = COALESCE($account_region, account.region, 'Unknown'),
+                    account.country = COALESCE($account_country, account.country),
+                    account.logo_url = COALESCE($logo_url, account.logo_url),
+                    account.website = COALESCE($website, account.website),
+                    account.summary = COALESCE($account_summary, account.summary),
+                    account.tagline = COALESCE($account_tagline, account.tagline)
+                MERGE (r)-[:FEATURES]->(account)
+                MERGE (account)-[:HAS_REFERENCE]->(r)
+                WITH r, account, vendor
+                MERGE (industry:Industry {name: $industry})
+                MERGE (account)-[:IN_INDUSTRY]->(industry)
+                MERGE (r)-[:IN_INDUSTRY]->(industry)
+                WITH r, account, vendor, industry
+                FOREACH (_ IN CASE WHEN vendor IS NULL THEN [] ELSE [1] END |
+                    MERGE (vendor)-[:HAS_CUSTOMER]->(account)
+                )
             """, {
                 'ref_id': ref_id,
-                'customer_name': classification_data.get('customer_name', 'Unknown'),
-                'size': classification_data.get('company_size', 'Unknown'),
-                'region': classification_data.get('region', 'Unknown'),
-                'country': classification_data.get('country'),
-                'industry': classification_data.get('industry', 'Other'),
-                'quoted_text': classification_data.get('quoted_text', '')
+                'quoted_text': quoted_text,
+                'customer_name': customer_name,
+                'company_size': company_size,
+                'account_region': account_region,
+                'account_country': account_country,
+                'logo_url': logo_url,
+                'website': website,
+                'account_summary': account_summary,
+                'account_tagline': account_tagline,
+                'industry': industry,
+                'primary_challenge': primary_challenge,
+                'primary_solution': primary_solution,
+                'primary_impact': primary_impact,
+                'primary_pitch': primary_pitch,
+                'primary_proof_points': primary_proof_points,
+                'primary_language': primary_language,
+                'primary_region': primary_region,
+                'primary_country': primary_country,
+                'primary_product': primary_product,
+                'material_ids': material_ids,
+                'primary_quotes': primary_quotes
             })
             
             # Create use case relationships
-            use_cases = classification_data.get('use_cases', [])
             if use_cases:
                 session.run("""
-                    MATCH (r:Reference {id: $ref_id})
+                    MATCH (r:Reference {id: $ref_id})-[:FEATURES]->(account:Account)
                     UNWIND $use_cases as uc_name
                     MERGE (uc:UseCase {name: uc_name})
                     MERGE (r)-[:ADDRESSES_USE_CASE]->(uc)
+                    MERGE (r)-[:HAS_USE_CASE]->(uc)
+                    MERGE (account)-[:HAS_USE_CASE]->(uc)
                 """, {
                     'ref_id': ref_id,
                     'use_cases': use_cases
                 })
             
             # Create technology relationships
-            tech_stack = classification_data.get('tech_stack', [])
             if tech_stack:
                 session.run("""
                     MATCH (r:Reference {id: $ref_id})
@@ -199,11 +347,12 @@ class Neo4jClient:
                 })
             
             # Create outcome relationships
-            outcomes = classification_data.get('outcomes', [])
             if outcomes:
                 for outcome in outcomes:
+                    description = outcome.get('description', '')
+                    outcome_type = outcome.get('type', 'other')
                     metric = outcome.get('metric')
-                    # Only set metric if it exists and is not empty
+                    
                     if metric:
                         session.run("""
                             MATCH (r:Reference {id: $ref_id})
@@ -215,12 +364,11 @@ class Neo4jClient:
                             MERGE (r)-[:ACHIEVED_OUTCOME]->(o)
                         """, {
                             'ref_id': ref_id,
-                            'type': outcome.get('type', 'other'),
-                            'description': outcome.get('description', ''),
+                            'type': outcome_type,
+                            'description': description,
                             'metric': metric
                         })
                     else:
-                        # Create outcome without metric property
                         session.run("""
                             MATCH (r:Reference {id: $ref_id})
                             MERGE (o:Outcome {
@@ -230,27 +378,133 @@ class Neo4jClient:
                             MERGE (r)-[:ACHIEVED_OUTCOME]->(o)
                         """, {
                             'ref_id': ref_id,
-                            'type': outcome.get('type', 'other'),
-                            'description': outcome.get('description', '')
+                            'type': outcome_type,
+                            'description': description
                         })
             
             # Create persona relationships
-            personas = classification_data.get('personas', [])
             if personas:
                 for persona in personas:
+                    title = persona.get('title', '')
+                    seniority = persona.get('seniority', '')
+                    name = persona.get('name', '')
+                    
+                    if not title:
+                        continue
+                    
                     session.run("""
                         MATCH (r:Reference {id: $ref_id})
                         MERGE (p:Persona {
                             title: $title,
                             seniority: $seniority
                         })
-                        SET p.name = $name
+                        SET p.name = COALESCE($name, p.name)
                         MERGE (r)-[:MENTIONS_PERSONA]->(p)
                     """, {
                         'ref_id': ref_id,
-                        'title': persona.get('title', ''),
-                        'seniority': persona.get('seniority', ''),
-                        'name': persona.get('name', '')
+                        'title': title,
+                        'seniority': seniority,
+                        'name': name or None
+                    })
+            
+            # Create champion relationships
+            if champions:
+                for champion in champions:
+                    champion_name = champion.get('name')
+                    champion_title = champion.get('title')
+                    champion_role = champion.get('role')
+                    champion_seniority = champion.get('seniority') or 'Unknown'
+                    champion_quotes = [q for q in (champion.get('quotes') or []) if q]
+                    
+                    if not any([champion_name, champion_title, champion_role, champion_quotes]):
+                        continue
+                    
+                    champion_id = champion.get('champion_id')
+                    if not champion_id:
+                        slug_source = "-".join(
+                            filter(
+                                None,
+                                [customer_name, champion_name, champion_title, champion_role]
+                            )
+                        )
+                        champion_id = _slugify(slug_source) or _slugify(f"{customer_name}-{ref_id}-champion")
+                    else:
+                        champion_id = _slugify(champion_id) or champion_id
+                    
+                    session.run("""
+                        MATCH (r:Reference {id: $ref_id})-[:FEATURES]->(account:Account)
+                        MERGE (champ:Champion {id: $champion_id})
+                        SET champ.name = COALESCE($champion_name, champ.name),
+                            champ.title = COALESCE($champion_title, champ.title),
+                            champ.role = COALESCE($champion_role, champ.role),
+                            champ.seniority = COALESCE($champion_seniority, champ.seniority),
+                            champ.quotes = CASE 
+                                WHEN $champion_quotes = [] THEN champ.quotes 
+                                ELSE $champion_quotes 
+                            END,
+                            champ.account_name = account.name
+                        MERGE (account)-[:HAS_CHAMPION]->(champ)
+                        MERGE (r)-[:HAS_CHAMPION]->(champ)
+                    """, {
+                        'ref_id': ref_id,
+                        'champion_id': champion_id,
+                        'champion_name': champion_name,
+                        'champion_title': champion_title,
+                        'champion_role': champion_role,
+                        'champion_seniority': champion_seniority,
+                        'champion_quotes': champion_quotes
+                    })
+            
+            # Create material relationships
+            if normalized_materials:
+                for material in normalized_materials:
+                    session.run("""
+                        MATCH (r:Reference {id: $ref_id})
+                        MERGE (m:Material {id: $material_id})
+                        SET m.title = COALESCE($title, m.title),
+                            m.content_type = COALESCE($content_type, m.content_type),
+                            m.publish_date = COALESCE($publish_date, m.publish_date),
+                            m.url = COALESCE($url, m.url),
+                            m.raw_text_excerpt = COALESCE($raw_text_excerpt, m.raw_text_excerpt),
+                            m.country = COALESCE($country, m.country),
+                            m.region = COALESCE($region, m.region),
+                            m.language = COALESCE($language, m.language),
+                            m.product = COALESCE($product, m.product),
+                            m.challenge = COALESCE($challenge, m.challenge),
+                            m.solution = COALESCE($solution, m.solution),
+                            m.impact = COALESCE($impact, m.impact),
+                            m.elevator_pitch = COALESCE($elevator_pitch, m.elevator_pitch),
+                            m.proof_points = CASE 
+                                WHEN $proof_points = [] THEN m.proof_points 
+                                ELSE $proof_points 
+                            END,
+                            m.quotes = CASE 
+                                WHEN $quotes = [] THEN m.quotes 
+                                ELSE $quotes 
+                            END,
+                            m.champion_role = COALESCE($champion_role, m.champion_role),
+                            m.embedding = COALESCE($embedding, m.embedding)
+                        MERGE (r)-[:HAS_MATERIAL]->(m)
+                    """, {
+                        'ref_id': ref_id,
+                        'material_id': material['material_id'],
+                        'title': material.get('title'),
+                        'content_type': material.get('content_type'),
+                        'publish_date': material.get('publish_date'),
+                        'url': material.get('url'),
+                        'raw_text_excerpt': material.get('raw_text_excerpt'),
+                        'country': material.get('country'),
+                        'region': material.get('region'),
+                        'language': material.get('language'),
+                        'product': material.get('product'),
+                        'challenge': material.get('challenge'),
+                        'solution': material.get('solution'),
+                        'impact': material.get('impact'),
+                        'elevator_pitch': material.get('elevator_pitch'),
+                        'proof_points': material.get('proof_points'),
+                        'quotes': material.get('quotes'),
+                        'champion_role': material.get('champion_role'),
+                        'embedding': material.get('embedding')
                     })
     
     def get_stats(self):

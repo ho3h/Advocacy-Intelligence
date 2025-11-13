@@ -73,7 +73,17 @@ class ReferenceClassifier:
         Returns:
             Dict with classification results
         """
-        prompt = f"""You are analyzing a customer reference/case study. Extract structured information from the text below.
+        industries_list = ', '.join(self.taxonomies.get('industries', {}).get('industries', []))
+        company_sizes_list = ', '.join(self.taxonomies.get('company_sizes', {}).get('company_sizes', []))
+        use_cases_list = ', '.join(self.taxonomies.get('use_cases', {}).get('use_cases', []))
+        
+        prompt = f"""You are analyzing a customer reference/case study. Extract structured information from the text below to support sales teams, marketing, and customer advocacy workflows.
+
+Think about:
+- Which account (customer) the story is about and how to profile them.
+- Which personas or champions are quoted and what roles they play in the deal.
+- What challenge, solution, and impact are highlighted.
+- What supporting materials/assets exist that enable go-to-market teams.
 
 REFERENCE URL: {reference_url}
 
@@ -82,15 +92,21 @@ REFERENCE TEXT:
 
 ---
 
-Extract the following information and return ONLY valid JSON (no markdown, no explanations):
+Extract the following information and return ONLY valid JSON (no markdown, no explanations). Use null for unknown scalar values and [] for unknown lists.
 
 {{
   "customer_name": "Name of the customer company",
-  "industry": "Select ONE from: {', '.join(self.taxonomies.get('industries', {}).get('industries', []))}",
-  "company_size": "Select ONE from: {', '.join(self.taxonomies.get('company_sizes', {}).get('company_sizes', []))}",
+  "industry": "Select ONE from: {industries_list}",
+  "company_size": "Select ONE from: {company_sizes_list}",
   "region": "Select ONE: North America, EMEA, APAC, LATAM, or Unknown",
   "country": "Specific country if mentioned, otherwise null",
-  "use_cases": ["Select 1-3 relevant from: {', '.join(self.taxonomies.get('use_cases', {}).get('use_cases', []))}"],
+  "account_details": {{
+    "logo_url": "Official logo URL if mentioned, else null",
+    "website": "Primary website URL for the account if mentioned, else null",
+    "summary": "One sentence summary of the account if available, else null",
+    "tagline": "Short tagline or descriptor if provided, else null"
+  }},
+  "use_cases": ["Select 1-3 relevant from: {use_cases_list}"],
   "outcomes": [
     {{
       "type": "performance | cost_savings | revenue_impact | efficiency | other",
@@ -106,7 +122,39 @@ Extract the following information and return ONLY valid JSON (no markdown, no ex
     }}
   ],
   "tech_stack": ["List of other technologies mentioned (AWS, Azure, dbt, etc.)"],
-  "quoted_text": "Most compelling customer quote from the reference (if any)"
+  "quoted_text": "Most compelling customer quote from the reference (if any)",
+  "champions": [
+    {{
+      "champion_id": "Create a slug using account name + champion name + title (lowercase, hyphen-separated)",
+      "name": "Champion full name if available, else descriptive placeholder (e.g., 'Data Engineering VP')",
+      "title": "Exact job title if available",
+      "role": "Commercial role this person plays in the story (e.g., Economic Buyer, Technical Champion, Executive Sponsor)",
+      "seniority": "C-Level | VP | Director | Manager | Individual Contributor | Unknown",
+      "quotes": ["Up to 3 direct quotes attributable to this champion"]
+    }}
+  ],
+  "materials": [
+    {{
+      "material_id": "Unique ID or slug for this asset. Use reference URL if nothing else is available.",
+      "title": "Title of the asset if available, otherwise null",
+      "content_type": "Select ONE: case_study | blog | video | press_release | webinar | whitepaper | datasheet | infographic | podcast | other",
+      "publish_date": "ISO 8601 date (YYYY-MM-DD) if available, else null",
+      "url": "Canonical URL for the asset. If missing, reuse the reference URL.",
+      "raw_text_excerpt": "Most relevant 1-2 sentence excerpt (<=500 chars) that captures the story",
+      "country": "Country highlighted in the asset if different from account country, else null",
+      "region": "Region highlighted in the asset (North America, EMEA, APAC, LATAM, Unknown)",
+      "language": "Language of the asset (e.g., English, German). Use 'Unknown' if not clear.",
+      "product": "Primary product or solution focus (e.g., 'Snowflake Data Cloud')",
+      "challenge": "1-2 sentence summary of the challenge",
+      "solution": "1-2 sentence summary of the solution",
+      "impact": "1-2 sentence summary of the quantifiable/qualitative impact",
+      "elevator_pitch": "Concise 1 sentence pitch summarizing the story",
+      "proof_points": ["List up to 5 key metrics or qualitative proof statements"],
+      "quotes": ["Key quotes drawn from the asset"],
+      "champion_role": "Role of the champion within this material (e.g., quote source, narrator, featured exec)",
+      "embedding": null
+    }}
+  ]
 }}
 
 IMPORTANT EXTRACTION GUIDELINES:
@@ -129,7 +177,9 @@ IMPORTANT EXTRACTION GUIDELINES:
 4. Use ONLY values from the predefined lists for industry, company_size, use_cases
 5. If information is not in the text, use "Unknown" or empty array as appropriate
 6. Keep descriptions concise (1-2 sentences)
-7. Return ONLY the JSON object, no other text
+7. Limit champions to those explicitly named or clearly described spokespeople (max 3)
+8. For materials, if you only have the current reference, output a single material that summarizes it
+9. Return ONLY the JSON object, no other text
 """
         
         for attempt in range(max_retries):

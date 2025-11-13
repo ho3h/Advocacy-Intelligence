@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-11-13
+
+### Added
+- Requests-based discovery fallback (`"discovery_fetch_method": "requests"`) so UniversalScraper can harvest JSON-embedded slugs from static Next.js directories (e.g., Redis customers)
+- Documentation updates (README/agents) covering the new discovery mode and Scrapy-first logging
+
+### Changed
+- UniversalScraper now prefers Scrapy results once the package is installed and reports which engine handled each URL
+- Redis vendor configuration refreshed to capture all 50 customer stories and rely on Scrapy before HyperBrowser.ai
+
+### Fixed
+- Scrapy result container handling, preventing false HyperBrowser fallbacks on successful HTML fetches
+
+## [0.3.0] - 2025-11-13
+
+### Added
+- Champion and Material nodes, and Vendor→Account (`HAS_CUSTOMER`) relationships to the graph data model
+- Extended classification schema to capture challenge, solution, impact, elevator pitch, proof points, champions, and supporting materials
+- Arrows/mermaid schema exports for the upgraded model (`data/schema/data_model_arrows.json`, README/agents diagrams)
+
+### Changed
+- `Neo4jClient.update_classification()` now persists Account metadata, champion/material relationships, and vendor-to-account links
+- Gemini classifier prompt updated to request enriched account, champion, and asset data aligned with the new taxonomy
+- README and agent documentation refreshed to reflect the Account-based model and new relationships
+
+### Fixed
+- Ensured material IDs are de-duplicated when persisting classification results
+
 ## [0.2.0] - 2025-01-11
 
 ### Added

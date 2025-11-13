@@ -1,0 +1,86 @@
+{
+  "mongodb": {
+    "name": "MongoDB",
+    "website": "https://www.mongodb.com",
+    "discovery_method": "sitemap",
+    "scraper_class": "UniversalScraper",
+    "enabled": true,
+    "error_handling": {
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "skip_on_error": false
+    },
+    "scraper": {
+      "link_patterns": ["/customers/", "/customer-case-studies/"],
+      "exclude_patterns": ["/customers/", "?industry=", "?region=", "?filter="]
+    }
+  },
+  "snowflake": {
+    "name": "Snowflake",
+    "website": "https://www.snowflake.com",
+    "discovery_method": "pagination",
+    "scraper_class": "UniversalScraper",
+    "enabled": true,
+    "error_handling": {
+      "retry_on_failure": true,
+      "max_retries": 2,
+      "skip_on_error": true
+    },
+    "scraper": {
+      "link_patterns": ["/case-study/"],
+      "exclude_patterns": ["/all-customers/", "/video"],
+      "pagination": {
+        "path": "/en/customers/all-customers/",
+        "strategy": "offset",
+        "page_param": "page",
+        "page_size_param": "pageSize",
+        "offset_param": "offset",
+        "page_size": 12,
+        "max_consecutive_empty": 2,
+        "create_session": true
+      }
+    }
+  },
+  "redis": {
+    "name": "Redis",
+    "website": "https://redis.io",
+    "discovery_method": "pagination",
+    "scraper_class": "UniversalScraper",
+    "enabled": true,
+    "error_handling": {
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "skip_on_error": false
+    },
+    "scraper": {
+      "link_patterns": ["/customers/"],
+      "exclude_patterns": ["?industry=", "?region=", "?filter="],
+      "discovery_fetch_method": "requests",
+      "pagination": {
+        "path": "/customers/",
+        "strategy": "page_number",
+        "page_param": "page",
+        "page_size": 12,
+        "max_consecutive_empty": 2,
+        "create_session": false
+      }
+    }
+  },
+  "databricks": {
+    "name": "Databricks",
+    "website": "https://www.databricks.com",
+    "discovery_method": "sitemap",
+    "scraper_class": "UniversalScraper",
+    "enabled": true,
+    "error_handling": {
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "skip_on_error": false
+    },
+    "scraper": {
+      "link_patterns": ["/customers/"],
+      "exclude_patterns": ["/customers/", "/gen-ai", "/your-ai", "/champions-program"]
+    }
+  }
+}
+

@@ -1,21 +1,41 @@
-"""Test scraping a single customer reference page."""
+"""Test scraping a single customer reference page using UniversalScraper."""
 
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from scrapers.snowflake_scraper import SnowflakeScraper
+from pipeline.scraper_registry import get_scraper
+from pipeline.vendor_config import get_enabled_vendors
+
 
 def main():
     print("=" * 60)
     print("TESTING SINGLE PAGE SCRAPING")
     print("=" * 60)
     
-    scraper = SnowflakeScraper()
+    # Get first available vendor for testing
+    enabled_vendors = get_enabled_vendors()
+    if not enabled_vendors:
+        print("✗ No enabled vendors found in configuration")
+        return
+    
+    vendor_key = enabled_vendors[0]
+    print(f"\nUsing vendor: {vendor_key}")
+    
+    try:
+        scraper = get_scraper(vendor_key)
+    except Exception as e:
+        print(f"✗ Failed to get scraper: {e}")
+        return
     
     # Get URLs first
     print("\n1. Discovering customer reference URLs...")
-    urls = scraper.get_customer_reference_urls()
+    try:
+        urls = scraper.get_customer_reference_urls()
+    except NotImplementedError:
+        print("⚠ This vendor uses sitemap discovery (not pagination)")
+        print("   Use: python scripts/run_pipeline.py --vendors {} --phases 1".format(vendor_key))
+        return
     
     if not urls:
         print("✗ No URLs found")
@@ -48,6 +68,6 @@ def main():
         print("   - Page structure is different than expected")
         print("   - HyperBrowser.ai needs different configuration")
 
+
 if __name__ == '__main__':
     main()
-

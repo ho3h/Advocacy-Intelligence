@@ -1,0 +1,28 @@
+{
+  "start_time": "2025-11-12T20:15:47.023104",
+  "end_time": "2025-11-12T20:16:08.225068",
+  "elapsed_seconds": 21.201943,
+  "vendors_processed": 1,
+  "totals": {
+    "urls_discovered": 0,
+    "urls_scraped": 0,
+    "references_loaded": 0,
+    "references_classified": 0
+  },
+  "costs": {
+    "hyperbrowser": 0.0,
+    "gemini": 0.0,
+    "total": 0.0
+  },
+  "errors": 0,
+  "results": {
+    "redis": {
+      "phase1": {
+        "discovered": 0,
+        "new": 0,
+        "skipped": 0,
+        "urls": []
+      }
+    }
+  }
+}

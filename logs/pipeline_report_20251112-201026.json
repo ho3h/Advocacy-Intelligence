@@ -1,0 +1,41 @@
+{
+  "start_time": "2025-11-12T20:07:26.759325",
+  "end_time": "2025-11-12T20:10:26.448977",
+  "elapsed_seconds": 179.689616,
+  "vendors_processed": 1,
+  "totals": {
+    "urls_discovered": 0,
+    "urls_scraped": 8,
+    "references_loaded": 8,
+    "references_classified": 8
+  },
+  "costs": {
+    "hyperbrowser": 0.24,
+    "gemini": 0.04,
+    "total": 0.27999999999999997
+  },
+  "errors": 0,
+  "results": {
+    "redis": {
+      "phase1": {
+        "discovered": 0,
+        "new": 0,
+        "skipped": 0,
+        "urls": []
+      },
+      "phase2": {
+        "scraped": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "phase3": {
+        "loaded": 8,
+        "skipped": 0
+      },
+      "phase4": {
+        "classified": 8,
+        "failed": 0
+      }
+    }
+  }
+}

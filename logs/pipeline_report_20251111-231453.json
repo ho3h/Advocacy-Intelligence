@@ -1,0 +1,146 @@
+{
+  "start_time": "2025-11-11T23:14:43.938618",
+  "end_time": "2025-11-11T23:14:53.772178",
+  "elapsed_seconds": 9.833535,
+  "vendors_processed": 3,
+  "totals": {
+    "urls_discovered": 60,
+    "urls_scraped": 0,
+    "references_loaded": 0,
+    "references_classified": 0
+  },
+  "costs": {
+    "hyperbrowser": 0.0,
+    "gemini": 0.0,
+    "total": 0.0
+  },
+  "errors": 2,
+  "results": {
+    "mongodb": {
+      "phase1": {
+        "discovered": 294,
+        "new": 60,
+        "skipped": 234,
+        "urls": [
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/ada",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/bollere-logistics",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/bosch",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/kovai",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/lombard-odier",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/loreal",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/macquarie",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/michelin",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/nationwide-building-society",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/novo-nordisk",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/sncfconnect",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/vodafone",
+          "https://www.mongodb.com/fr-fr/solutions/customer-case-studies/wells-fargo",
+          "https://www.mongodb.com/global/zh-tw/solutions/customer-case-studies/ada",
+          "https://www.mongodb.com/global/zh-tw/solutions/customer-case-studies/kovai",
+          "https://www.mongodb.com/ja-jp/solutions/customer-case-studies/plaid",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/ada",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/baemin",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/bendigo-and-adelaide-bank",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/bosch",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/cathay-pacific",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/dongwha",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/hankyoreh",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/kovai",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/lgu",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/lombard-odier",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/loreal",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/macquarie",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/michelin",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/nationwide-building-society",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/nod-games",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/novo-nordisk",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/vodafone",
+          "https://www.mongodb.com/ko-kr/solutions/customer-case-studies/wells-fargo",
+          "https://www.mongodb.com/solutions/customer-case-studies/apna",
+          "https://www.mongodb.com/solutions/customer-case-studies/bazaarvoice",
+          "https://www.mongodb.com/solutions/customer-case-studies/bendigo-bank",
+          "https://www.mongodb.com/solutions/customer-case-studies/omnichat",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/accuhit",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/ada",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/bosch",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/g-bits",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/hk01",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/kovai",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/kronos",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/lombard-odier",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/loreal",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/macquarie",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/michelin",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/migu",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/nationwide-building-society",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/noodoe",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/novo-nordisk",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/pumpkin-film",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/questflow",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/shopline",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/vodafone",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/wells-fargo",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/xtransfer",
+          "https://www.mongodb.com/zh-cn/solutions/customer-case-studies/yile"
+        ]
+      },
+      "phase2": {
+        "scraped": 0,
+        "skipped": 234,
+        "failed": 0
+      },
+      "phase3": {
+        "loaded": 0,
+        "skipped": 0
+      },
+      "phase4": {
+        "classified": 0,
+        "failed": 0
+      }
+    },
+    "snowflake": {
+      "phase1": {
+        "discovered": 0,
+        "new": 0,
+        "skipped": 0,
+        "urls": [],
+        "error": "[Errno 32] Broken pipe"
+      },
+      "phase2": {
+        "scraped": 0,
+        "skipped": 67,
+        "failed": 0
+      },
+      "phase3": {
+        "loaded": 0,
+        "skipped": 0
+      },
+      "phase4": {
+        "classified": 0,
+        "failed": 0
+      }
+    },
+    "redis": {
+      "phase1": {
+        "discovered": 0,
+        "new": 0,
+        "skipped": 0,
+        "urls": [],
+        "error": "[Errno 32] Broken pipe"
+      },
+      "phase2": {
+        "scraped": 0,
+        "skipped": 0,
+        "failed": 0
+      },
+      "phase3": {
+        "loaded": 0,
+        "skipped": 0
+      },
+      "phase4": {
+        "classified": 0,
+        "failed": 0
+      }
+    }
+  }
+}

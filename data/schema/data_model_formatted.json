@@ -370,11 +370,6 @@
       "end_node_label": "Industry"
     },
     {
-      "type": "HAS_CUSTOMER",
-      "start_node_label": "Vendor",
-      "end_node_label": "Account"
-    },
-    {
       "type": "ADDRESSES_USE_CASE",
       "start_node_label": "Reference",
       "end_node_label": "UseCase"
@@ -421,4 +416,3 @@
     }
   ]
 }
-

@@ -1,0 +1,71 @@
+{
+  "start_time": "2025-11-12T20:22:22.007319",
+  "end_time": "2025-11-12T20:22:23.906308",
+  "elapsed_seconds": 1.898974,
+  "vendors_processed": 1,
+  "totals": {
+    "urls_discovered": 42,
+    "urls_scraped": 0,
+    "references_loaded": 0,
+    "references_classified": 0
+  },
+  "costs": {
+    "hyperbrowser": 0.0,
+    "gemini": 0.0,
+    "total": 0.0
+  },
+  "errors": 0,
+  "results": {
+    "redis": {
+      "phase1": {
+        "discovered": 50,
+        "new": 42,
+        "skipped": 8,
+        "urls": [
+          "https://redis.io/customers/apna/",
+          "https://redis.io/customers/asurion/",
+          "https://redis.io/customers/biocatch/",
+          "https://redis.io/customers/cheq/",
+          "https://redis.io/customers/deutsche-borse/",
+          "https://redis.io/customers/docugami/",
+          "https://redis.io/customers/eden/",
+          "https://redis.io/customers/ekata/",
+          "https://redis.io/customers/etermax/",
+          "https://redis.io/customers/flowdesk/",
+          "https://redis.io/customers/food-agriculture-producer/",
+          "https://redis.io/customers/france-travail/",
+          "https://redis.io/customers/hackerrank/",
+          "https://redis.io/customers/healthstream/",
+          "https://redis.io/customers/ifood/",
+          "https://redis.io/customers/jiocinema/",
+          "https://redis.io/customers/kicker/",
+          "https://redis.io/customers/liftoff/",
+          "https://redis.io/customers/loblaw/",
+          "https://redis.io/customers/matrimony-com/",
+          "https://redis.io/customers/medeanalytics/",
+          "https://redis.io/customers/meesho/",
+          "https://redis.io/customers/meo/",
+          "https://redis.io/customers/mercedes-benz/",
+          "https://redis.io/customers/mitto/",
+          "https://redis.io/customers/mutualink/",
+          "https://redis.io/customers/niantic/",
+          "https://redis.io/customers/ordergrid/",
+          "https://redis.io/customers/plivo/",
+          "https://redis.io/customers/procesio/",
+          "https://redis.io/customers/proximus/",
+          "https://redis.io/customers/purplle/",
+          "https://redis.io/customers/relevance-ai/",
+          "https://redis.io/customers/retail-anz/",
+          "https://redis.io/customers/retail-na/",
+          "https://redis.io/customers/simility/",
+          "https://redis.io/customers/sonyliv/",
+          "https://redis.io/customers/starlogik/",
+          "https://redis.io/customers/superlinked/",
+          "https://redis.io/customers/telus/",
+          "https://redis.io/customers/upstox/",
+          "https://redis.io/customers/wizz/"
+        ]
+      }
+    }
+  }
+}

@@ -239,6 +239,22 @@ VENDOR_CONFIGS = {
             r'#',
         ],
     },
+    'databricks': {
+        'base_url': 'https://www.databricks.com',
+        'sitemap_path': '/webshared/sitemaps/sitemap-index.xml',
+        'url_patterns': [r'/customers/'],
+        'exclude_patterns': [
+            r'/customers/?$',  # Base customers listing page
+            r'/customers/gen-ai',  # Special pages
+            r'/customers/your-ai',
+            r'/customers/champions-program',
+            r'/customers/solutions-accelerator-general',
+            r'\?',  # Query parameters
+            r'#',   # Anchors
+        ],
+        'follow_sitemap_index': True,
+        'max_sitemaps': 20,  # Limit to customer sitemap
+    },
 }
 
 
@@ -246,7 +262,7 @@ def discover_vendor_urls(vendor: str) -> List[str]:
     """Discover customer reference URLs for a known vendor.
     
     Args:
-        vendor: Vendor name ('redis', 'mongodb', etc.)
+        vendor: Vendor name ('redis', 'mongodb', 'databricks', etc.)
         
     Returns:
         List of customer reference URLs
@@ -263,11 +279,53 @@ def discover_vendor_urls(vendor: str) -> List[str]:
     
     config = VENDOR_CONFIGS[vendor_lower]
     
+    # Handle sitemap index following for Databricks
+    follow_index = config.get('follow_sitemap_index', True)
+    max_sitemaps = config.get('max_sitemaps', 10)
+    
+    # For Databricks, we need to filter to only the customer sitemap
+    if vendor_lower == 'databricks':
+        # First, get the main sitemap index
+        sitemap_index_url = config['base_url'] + config['sitemap_path']
+        index_xml = fetch_sitemap(sitemap_index_url)
+        if index_xml:
+            index_urls = parse_sitemap_urls(index_xml)
+            # Find the customer sitemap index
+            customer_sitemap_index = None
+            for sitemap_url in index_urls:
+                if 'customer-assets' in sitemap_url.lower() and 'sitemap-index' in sitemap_url.lower():
+                    customer_sitemap_index = sitemap_url
+                    break
+            
+            if customer_sitemap_index:
+                # Fetch the customer sitemap index (which points to child sitemaps)
+                customer_index_xml = fetch_sitemap(customer_sitemap_index)
+                if customer_index_xml:
+                    customer_sitemap_urls = parse_sitemap_urls(customer_index_xml)
+                    # Fetch the actual customer sitemap (usually sitemap-0.xml)
+                    all_urls = []
+                    for sitemap_url in customer_sitemap_urls[:max_sitemaps]:
+                        sitemap_xml = fetch_sitemap(sitemap_url)
+                        if sitemap_xml:
+                            urls = parse_sitemap_urls(sitemap_xml)
+                            all_urls.extend(urls)
+                    
+                    # Filter for customer URLs
+                    customer_urls = filter_customer_urls(
+                        all_urls,
+                        config['url_patterns'],
+                        config['exclude_patterns']
+                    )
+                    return customer_urls
+    
+    # Default behavior for other vendors
     return discover_from_sitemap(
         base_url=config['base_url'],
         sitemap_path=config['sitemap_path'],
         url_patterns=config['url_patterns'],
         exclude_patterns=config['exclude_patterns'],
+        follow_sitemap_index=follow_index,
+        max_sitemaps=max_sitemaps,
     )
 
 

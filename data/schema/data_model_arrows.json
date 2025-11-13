@@ -1,0 +1,349 @@
+{
+  "nodes": [
+    {
+      "id": "n0",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "caption": "Vendor",
+      "labels": [
+        "Vendor"
+      ],
+      "properties": {
+        "name": "name (key)"
+      },
+      "propertyList": [
+        "name: STRING (key)",
+        "website: STRING"
+      ]
+    },
+    {
+      "id": "n1",
+      "position": {
+        "x": 400,
+        "y": 100
+      },
+      "caption": "Reference",
+      "labels": [
+        "Reference"
+      ],
+      "properties": {
+        "id": "id (key)"
+      },
+      "propertyList": [
+        "id: STRING (key)",
+        "url: STRING",
+        "raw_text: STRING",
+        "word_count: INTEGER",
+        "scraped_date: DATE_TIME",
+        "classification_date: DATE_TIME",
+        "quoted_text: STRING",
+        "classified: BOOLEAN",
+        "challenge: STRING",
+        "solution: STRING",
+        "impact: STRING",
+        "elevator_pitch: STRING",
+        "proof_points: LIST",
+        "language: STRING",
+        "region: STRING",
+        "country: STRING",
+        "product_focus: STRING",
+        "material_ids: LIST",
+        "additional_quotes: LIST"
+      ]
+    },
+    {
+      "id": "n2",
+      "position": {
+        "x": 700,
+        "y": 100
+      },
+      "caption": "Account",
+      "labels": [
+        "Account"
+      ],
+      "properties": {
+        "name": "name (key)"
+      },
+      "propertyList": [
+        "name: STRING (key)",
+        "size: STRING",
+        "region: STRING",
+        "country: STRING",
+        "logo_url: STRING",
+        "website: STRING",
+        "summary: STRING",
+        "tagline: STRING"
+      ]
+    },
+    {
+      "id": "n3",
+      "position": {
+        "x": 100,
+        "y": 300
+      },
+      "caption": "Champion",
+      "labels": [
+        "Champion"
+      ],
+      "properties": {
+        "id": "id (key)"
+      },
+      "propertyList": [
+        "id: STRING (key)",
+        "name: STRING",
+        "title: STRING",
+        "role: STRING",
+        "seniority: STRING",
+        "quotes: LIST",
+        "account_name: STRING"
+      ]
+    },
+    {
+      "id": "n4",
+      "position": {
+        "x": 400,
+        "y": 300
+      },
+      "caption": "Material",
+      "labels": [
+        "Material"
+      ],
+      "properties": {
+        "id": "id (key)"
+      },
+      "propertyList": [
+        "id: STRING (key)",
+        "title: STRING",
+        "content_type: STRING",
+        "publish_date: STRING",
+        "url: STRING",
+        "raw_text_excerpt: STRING",
+        "country: STRING",
+        "region: STRING",
+        "language: STRING",
+        "product: STRING",
+        "challenge: STRING",
+        "solution: STRING",
+        "impact: STRING",
+        "elevator_pitch: STRING",
+        "proof_points: LIST",
+        "quotes: LIST",
+        "champion_role: STRING",
+        "embedding: STRING"
+      ]
+    },
+    {
+      "id": "n5",
+      "position": {
+        "x": 700,
+        "y": 300
+      },
+      "caption": "Industry",
+      "labels": [
+        "Industry"
+      ],
+      "properties": {
+        "name": "name (key)"
+      },
+      "propertyList": [
+        "name: STRING (key)"
+      ]
+    },
+    {
+      "id": "n6",
+      "position": {
+        "x": 100,
+        "y": 500
+      },
+      "caption": "UseCase",
+      "labels": [
+        "UseCase"
+      ],
+      "properties": {
+        "name": "name (key)"
+      },
+      "propertyList": [
+        "name: STRING (key)"
+      ]
+    },
+    {
+      "id": "n7",
+      "position": {
+        "x": 400,
+        "y": 500
+      },
+      "caption": "Persona",
+      "labels": [
+        "Persona"
+      ],
+      "properties": {
+        "title": "title (key)"
+      },
+      "propertyList": [
+        "title: STRING (key)",
+        "name: STRING",
+        "seniority: STRING"
+      ]
+    },
+    {
+      "id": "n8",
+      "position": {
+        "x": 700,
+        "y": 500
+      },
+      "caption": "Outcome",
+      "labels": [
+        "Outcome"
+      ],
+      "properties": {
+        "description": "description (key)"
+      },
+      "propertyList": [
+        "type: STRING",
+        "description: STRING (key)",
+        "metric: STRING"
+      ]
+    },
+    {
+      "id": "n9",
+      "position": {
+        "x": 100,
+        "y": 700
+      },
+      "caption": "Technology",
+      "labels": [
+        "Technology"
+      ],
+      "properties": {
+        "name": "name (key)"
+      },
+      "propertyList": [
+        "name: STRING (key)"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "r0",
+      "type": "PUBLISHED",
+      "startNodeId": "n0",
+      "endNodeId": "n1",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r1",
+      "type": "FEATURES",
+      "startNodeId": "n1",
+      "endNodeId": "n2",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r2",
+      "type": "HAS_REFERENCE",
+      "startNodeId": "n2",
+      "endNodeId": "n1",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r3",
+      "type": "IN_INDUSTRY",
+      "startNodeId": "n2",
+      "endNodeId": "n5",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r4",
+      "type": "IN_INDUSTRY",
+      "startNodeId": "n1",
+      "endNodeId": "n5",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r5",
+      "type": "HAS_CUSTOMER",
+      "startNodeId": "n0",
+      "endNodeId": "n2",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r6",
+      "type": "ADDRESSES_USE_CASE",
+      "startNodeId": "n1",
+      "endNodeId": "n6",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r7",
+      "type": "HAS_USE_CASE",
+      "startNodeId": "n1",
+      "endNodeId": "n6",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r8",
+      "type": "HAS_USE_CASE",
+      "startNodeId": "n2",
+      "endNodeId": "n6",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r9",
+      "type": "ACHIEVED_OUTCOME",
+      "startNodeId": "n1",
+      "endNodeId": "n8",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r10",
+      "type": "MENTIONS_PERSONA",
+      "startNodeId": "n1",
+      "endNodeId": "n7",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r11",
+      "type": "MENTIONS_TECH",
+      "startNodeId": "n1",
+      "endNodeId": "n9",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r12",
+      "type": "HAS_CHAMPION",
+      "startNodeId": "n2",
+      "endNodeId": "n3",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r13",
+      "type": "HAS_CHAMPION",
+      "startNodeId": "n1",
+      "endNodeId": "n3",
+      "properties": {},
+      "propertyList": []
+    },
+    {
+      "id": "r14",
+      "type": "HAS_MATERIAL",
+      "startNodeId": "n1",
+      "endNodeId": "n4",
+      "properties": {},
+      "propertyList": []
+    }
+  ]
+}

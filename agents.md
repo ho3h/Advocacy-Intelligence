@@ -9,13 +9,67 @@ This is a competitive intelligence platform for B2B customer marketing teams. We
 **Current Phase**: V1 - Proof of Concept
 **Target Industry**: Data/Database companies (Snowflake, Databricks, etc.)
 
+## 🚨 CRITICAL RULES: Universal Ingestion Protocol
+
+### Rule #1: ONE Universal Way to Ingest Sites
+
+**ALL site ingestion MUST go through `scripts/run_pipeline.py` - NO EXCEPTIONS!**
+
+```bash
+# ✅ CORRECT - Use unified pipeline
+python scripts/run_pipeline.py --vendors vendor_key
+
+# ❌ WRONG - Never create vendor-specific scripts
+python scripts/scrape_vendor.py          # DON'T DO THIS
+python scripts/discover_urls_vendor.py  # DON'T DO THIS
+python scripts/ingest_vendor.py         # DON'T DO THIS
+```
+
+**The unified pipeline (`run_pipeline.py`) handles:**
+- ✅ Phase 1: URL Discovery (sitemap or pagination)
+- ✅ Phase 2: Content Scraping (with idempotency)
+- ✅ Phase 3: Database Loading (with deduplication)
+- ✅ Phase 4: Classification (only unclassified)
+
+**If you need to ingest a site:**
+1. **Check if vendor exists** in `data/vendors.json`
+2. **If exists:** Run `python scripts/run_pipeline.py --vendors vendor_key`
+3. **If doesn't exist:** Add vendor config (see "Task: Add a New Vendor" below)
+4. **NEVER create new ingestion scripts** - use the pipeline!
+
+### Rule #2: Always Check Before Creating New Code
+
+**Before creating ANY new scraper, script, or vendor configuration:**
+
+1. **Check if it already exists:**
+   - `ls src/scrapers/*_scraper.py` - List all scrapers
+   - `grep vendor_key data/vendors.json` - Check vendor configs
+   - `grep vendor_key src/pipeline/scraper_registry.py` - Check registry
+
+2. **If it exists:**
+   - ✅ **DO NOT create a duplicate** - improve/fix the existing code
+   - ✅ Read the existing code to understand the current implementation
+   - ✅ Make incremental improvements, don't rewrite from scratch
+
+3. **If it doesn't exist:**
+   - ✅ Follow the protocol in "Task: Add a New Vendor" section
+   - ✅ Check `agents.md` for the exact steps before starting
+
+**This prevents:**
+- Duplicate code
+- Broken configurations
+- Wasted time rewriting working code
+- Confusion about which version is correct
+- Multiple ways to do the same thing
+
 ## Key Technical Context
 
 ### Tech Stack
 - **Python 3.11+** for all backend code
 - **Neo4j AuraDB Free** for graph storage (cloud-hosted Neo4j)
 - **Google Gemini API** (auto-detects best available model, prefers gemini-2.5-flash) for content classification
-- **HyperBrowser.ai** for web scraping (required for JavaScript-rendered pages)
+- **Scrapy** for web scraping (first attempt - free, fast)
+- **HyperBrowser.ai** for web scraping fallback (JavaScript-rendered pages, Cloudflare protection)
 - **requests** for sitemap fetching (sitemap-based discovery)
 - **Streamlit** for UI (later phase)
 - **python-dotenv** for environment management
@@ -38,10 +92,11 @@ Phase 1: URL Discovery → Phase 2: Content Scraping → Phase 3: Database Loadi
 
 **Phase 2: Content Scraping**
 - Loads URLs from Phase 1 output files
-- Uses HyperBrowser.ai for all page fetching (required for JavaScript)
+- Uses **Scrapy first** (free, fast) for simple pages (venv dependency installed by default) and logs when Scrapy succeeds
+- Falls back to **HyperBrowser.ai** for JavaScript-rendered pages or Cloudflare protection (logs when fallback is used)
 - Saves each reference as individual JSON file: `data/scraped/{vendor}/{customer-slug}-{timestamp}.json`
 - Filters low-quality scrapes (<100 words)
-- **Scripts**: `scripts/scrape_phase2.py`, `scripts/scrape_phase2_mongodb.py`, etc.
+- **Script**: Use unified pipeline: `python scripts/run_pipeline.py --vendors {vendor} --phases 2`
 
 **Phase 3: Database Loading**
 - Loads scraped references from files into Neo4j
@@ -112,12 +167,18 @@ The complete data model is defined in `data/schema/data_model.json` and can be v
 ```mermaid
 erDiagram
     Vendor ||--o{ Reference : PUBLISHED
-    Reference ||--|| Customer : FEATURES
-    Customer }o--|| Industry : IN_INDUSTRY
-    Reference }o--o{ UseCase : ADDRESSES_USE_CASE
+    Vendor ||--o{ Account : HAS_CUSTOMER
+    Reference ||--|| Account : FEATURES
+    Account }o--|| Industry : IN_INDUSTRY
+    Reference }o--o{ Industry : IN_INDUSTRY
+    Reference }o--o{ UseCase : HAS_USE_CASE
+    Account }o--o{ UseCase : HAS_USE_CASE
     Reference }o--o{ Outcome : ACHIEVED_OUTCOME
     Reference }o--o{ Persona : MENTIONS_PERSONA
     Reference }o--o{ Technology : MENTIONS_TECH
+    Account ||--o{ Champion : HAS_CHAMPION
+    Reference ||--o{ Champion : HAS_CHAMPION
+    Reference ||--o{ Material : HAS_MATERIAL
 
     Vendor {
         string name PK
@@ -133,13 +194,57 @@ erDiagram
         datetime classification_date
         string quoted_text
         boolean classified
+        string challenge
+        string solution
+        string impact
+        string elevator_pitch
+        list proof_points
+        string language
+        string region
+        string country
+        string product_focus
     }
     
-    Customer {
+    Account {
         string name PK
         string size
         string region
         string country
+        string logo_url
+        string website
+        string summary
+        string tagline
+    }
+    
+    Champion {
+        string id PK
+        string name
+        string title
+        string role
+        string seniority
+        list quotes
+        string account_name
+    }
+    
+    Material {
+        string id PK
+        string title
+        string content_type
+        string publish_date
+        string url
+        string raw_text_excerpt
+        string country
+        string region
+        string language
+        string product
+        string challenge
+        string solution
+        string impact
+        string elevator_pitch
+        list proof_points
+        list quotes
+        string champion_role
+        string embedding
     }
     
     Industry {
@@ -173,7 +278,7 @@ erDiagram
 - `name` (PK): Vendor name (e.g., "Snowflake")
 - `website`: Vendor website URL
 
-**Reference** - The actual case study/video/blog content
+**Reference** - The actual case study/video/blog content enriched with narrative context
 - `id` (PK): Unique reference ID (UUID)
 - `url`: Source URL
 - `raw_text`: Full scraped text content
@@ -182,12 +287,24 @@ erDiagram
 - `classification_date`: When classification completed
 - `quoted_text`: Best customer quote extracted
 - `classified`: Processing flag (false = needs classification)
+- `challenge`: Summary of the problem highlighted
+- `solution`: Summary of the approach taken
+- `impact`: Summary of outcomes achieved
+- `elevator_pitch`: One-line story recap
+- `proof_points`: List of quantitative/qualitative metrics
+- `language`: Language of the asset
+- `region` / `country`: Geographic focus
+- `product_focus`: Primary product or solution emphasized
 
-**Customer** - Company featured in the reference
-- `name` (PK): Customer company name (e.g., "Capital One")
+**Account** - Customer organization featured in the reference (supersedes the earlier `Customer` label)
+- `name` (PK): Account name (e.g., "Capital One")
 - `size`: Company size (Enterprise, Mid-Market, SMB, Startup, Unknown)
 - `region`: Geographic region (North America, EMEA, APAC, LATAM, Unknown)
 - `country`: Specific country if mentioned (optional)
+- `logo_url`: Public logo link if available
+- `website`: Official website
+- `summary`: One-sentence description
+- `tagline`: Short descriptor or positioning statement
 
 **Industry** - Industry classification
 - `name` (PK): Industry name (e.g., "Financial Services", "Technology & Software")
@@ -208,61 +325,226 @@ erDiagram
 **Technology** - Technologies mentioned
 - `name` (PK): Technology name (e.g., "AWS", "dbt", "PostgreSQL")
 
+**Champion** - Individuals quoted or highlighted as advocates
+- `id` (PK): Stable identifier (slug) for the champion
+- `name`: Person's name if available
+- `title`: Official job title
+- `role`: Commercial role (e.g., Technical Champion, Executive Sponsor)
+- `seniority`: Seniority tier (C-Level, VP, Director, Manager, IC, Unknown)
+- `quotes`: List of attributable quotes
+- `account_name`: Back-reference to the associated account
+
+**Material** - Supporting marketing assets tied to the reference
+- `id` (PK): Unique identifier for the asset (slug or URL)
+- `title`: Asset title
+- `content_type`: case_study, blog, video, webinar, etc.
+- `publish_date`: ISO date string if available
+- `url`: Canonical asset URL
+- `raw_text_excerpt`: Representative excerpt
+- `country` / `region` / `language`: Localization metadata
+- `product`: Product or solution focus
+- `challenge` / `solution` / `impact`: Asset-specific narratives
+- `elevator_pitch`: One-line summary
+- `proof_points`: Key metrics/claims from the asset
+- `quotes`: Quotes captured within the asset
+- `champion_role`: How the champion participated (e.g., speaker, quote source)
+- `embedding`: Optional vector representation for semantic search
+
 ### Core Relationships
 
 ```cypher
 (Vendor)-[:PUBLISHED]->(Reference)
-(Reference)-[:FEATURES]->(Customer)
-(Customer)-[:IN_INDUSTRY]->(Industry)
+(Vendor)-[:HAS_CUSTOMER]->(Account)
+(Reference)-[:FEATURES]->(Account)
+(Account)-[:HAS_REFERENCE]->(Reference)
+(Account)-[:IN_INDUSTRY]->(Industry)
+(Reference)-[:IN_INDUSTRY]->(Industry)
 (Reference)-[:ADDRESSES_USE_CASE]->(UseCase)
+(Reference)-[:HAS_USE_CASE]->(UseCase)
+(Account)-[:HAS_USE_CASE]->(UseCase)
 (Reference)-[:ACHIEVED_OUTCOME]->(Outcome)
 (Reference)-[:MENTIONS_PERSONA]->(Persona)
 (Reference)-[:MENTIONS_TECH]->(Technology)
+(Account)-[:HAS_CHAMPION]->(Champion)
+(Reference)-[:HAS_CHAMPION]->(Champion)
+(Reference)-[:HAS_MATERIAL]->(Material)
 ```
 
 ### Indexes
 
-- `Customer.name` - For fast customer lookups
+- `Account.name` - For fast account lookups
 - `Reference.url` - For URL deduplication
 - `Vendor.name` - For vendor lookups
+- `Champion.id` - For champion retrieval
+- `Material.id` - For material retrieval
 
 ## Common Tasks & How to Approach Them
 
-### Task: Add a New Scraper
+### Task: Add a New Vendor
 
-**IMPORTANT: Always try sitemap first!** It's 100x faster and free.
+**🚨 MANDATORY: Use `scripts/run_pipeline.py` for ALL ingestion!**
 
-1. **Check if vendor has sitemap:**
+**The unified pipeline is the ONLY way to ingest sites. Never create vendor-specific ingestion scripts.**
+
+**You NEVER need to create new scrapers!** The `UniversalScraper` handles all vendors via configuration.
+
+**For NEW vendors:**
+1. **Check if vendor already exists:**
    ```bash
-   curl -I https://vendor.com/sitemap.xml
+   grep -i "vendor_name" data/vendors.json
    ```
 
-2. **If sitemap exists:**
-   - Add vendor config to `src/utils/sitemap_discovery.py` → `VENDOR_CONFIGS`
-   - Test: `python scripts/discover_urls_sitemap.py {vendor}`
-   - If it works, you're done with Phase 1! (10 seconds vs. hours)
+2. **If vendor exists:**
+   - ✅ **DO NOT create anything** - vendor is already configured
+   - ✅ Use `python scripts/run_pipeline.py --vendors vendor_key` to run it
+   - ✅ If it's broken, fix the existing configuration in `data/vendors.json`
 
-3. **If no sitemap or Cloudflare blocks it:**
-   - Create scraper file: `src/scrapers/{vendor}_scraper.py`
-   - Follow pattern from `mongodb_scraper.py` or `redis_scraper.py`
-   - **Use flexible pagination system**: Import from `scrapers.pagination`:
-     - `OffsetPaginationStrategy` - For offset-based pagination (Snowflake style)
-     - `PageNumberPaginationStrategy` - For simple page numbers
-     - `PathPaginationStrategy` - For path-based pagination
-   - Implement these methods:
-     - `get_customer_reference_urls()` - Uses `paginate_with_strategy()` OR sitemap discovery
-     - `scrape_reference(url)` - Returns dict with raw_text, customer_name, metadata
-   - Add rate limiting (2-3 second delays)
-   - Use HyperBrowser.ai for all page fetching (required for JavaScript)
+3. **If vendor doesn't exist:**
+   - Just add configuration to `data/vendors.json` - no Python code needed!
 
-4. **Create Phase 2 script:**
-   - Copy `scripts/scrape_phase2_mongodb.py` as template
-   - Update vendor name and file paths
-   - Handles resume capability (skips already-scraped URLs)
+**Key Insight:**
+- **ALL vendors** use `UniversalScraper` - no scraper classes needed!
+- **Sitemap-based vendors**: Just config in `data/vendors.json` + `src/utils/sitemap_discovery.py`
+- **Pagination-based vendors**: Just config in `data/vendors.json` with `pagination` section
+- **The pipeline (`run_pipeline.py`) + UniversalScraper** handles everything - you just configure vendors
 
-5. **Create Phase 3 & 4 script:**
-   - Copy `scripts/load_and_classify_mongodb.py` as template
-   - Updates vendor name
+**Protocol**: Follow these exact steps every time you add a new vendor. This ensures consistency and leverages the unified pipeline system.
+
+#### Step 0: Verify Vendor Doesn't Already Exist
+
+**Before doing anything, check:**
+1. Is vendor in `data/vendors.json`?
+
+**If YES:**
+- ✅ Use existing configuration
+- ✅ Fix/improve existing config, don't duplicate
+- ✅ Only proceed if user explicitly asks to recreate from scratch
+
+#### Step 1: Check for Sitemap (ALWAYS Try First!)
+
+```bash
+curl -I https://vendor.com/sitemap.xml
+```
+
+**If sitemap exists and is accessible:**
+- ✅ Fast (~10 seconds), free, preferred method
+- Skip to Step 3 (no scraper class needed)
+
+**If no sitemap or Cloudflare blocks it:**
+- Continue to Step 2 (create pagination scraper)
+
+#### Step 2: Add Vendor Configuration
+
+**No scraper class needed!** The `UniversalScraper` handles all vendors via configuration.
+
+**Edit `data/vendors.json`** and add vendor entry:
+
+```json
+{
+  "vendor_key": {
+    "name": "Vendor Name",
+    "website": "https://vendor.com",
+    "discovery_method": "sitemap",
+    "scraper_class": "UniversalScraper",
+    "enabled": true,
+    "error_handling": {
+      "retry_on_failure": true,
+      "max_retries": 3,
+      "skip_on_error": false
+    },
+    "scraper": {
+      "link_patterns": ["/customers/", "/case-studies/"],
+      "exclude_patterns": ["/customers/", "?filter="],
+      "pagination": {
+        "path": "/customers/",
+        "strategy": "page_number",
+        "page_param": "page",
+        "page_size": 12,
+        "max_consecutive_empty": 2
+      }
+    }
+  }
+}
+```
+
+> **Static-page hint:** If the listing page renders a JSON payload (e.g., Next.js) and Scrapy isn't required for discovery, set `"discovery_fetch_method": "requests"` inside the `scraper` block. The universal scraper will fetch the HTML directly and parse embedded `pathname` entries for every case-study slug.
+
+**Note**: Only include `pagination` config if `discovery_method` is `"pagination"`. For sitemap-based discovery, only `link_patterns` and `exclude_patterns` are needed.
+
+**If using sitemap**, also add to `src/utils/sitemap_discovery.py` → `VENDOR_CONFIGS`:
+
+```python
+VENDOR_CONFIGS = {
+    # ... existing configs ...
+    'vendor_key': {
+        'base_url': 'https://vendor.com',
+        'sitemap_path': '/sitemap.xml',
+        'url_patterns': [r'/customers/', r'/case-studies/'],
+        'exclude_patterns': [r'/customers/?$', r'\?', r'#'],
+    },
+}
+```
+
+#### Option B: Pagination-Based Discovery (Fallback)
+- **Method**: Iterate through paginated listing pages (supports plain `requests` fetch via `"discovery_fetch_method": "requests"` for static Next.js directories)
+- **Speed**: Minutes to hours (depends on pages)
+- **Cost**: HyperBrowser.ai costs (~$0.01-0.05 per page)
+- **Works for**: Redis (Cloudflare protection), Snowflake
+
+#### Step 3: Test Configuration
+
+**🚨 ALWAYS use `run_pipeline.py` - this is the ONLY way to ingest sites!**
+
+```bash
+# Dry run to test configuration (no changes made)
+python scripts/run_pipeline.py --vendors vendor_key --phases 1 --dry-run
+
+# Test Phase 1 only (URL discovery)
+python scripts/run_pipeline.py --vendors vendor_key --phases 1
+
+# Test Phase 2 only (content scraping)
+python scripts/run_pipeline.py --vendors vendor_key --phases 2
+
+# Test full pipeline (all 4 phases)
+python scripts/run_pipeline.py --vendors vendor_key
+
+# Process multiple vendors
+python scripts/run_pipeline.py --vendors mongodb,snowflake,redis
+
+# Skip specific phases
+python scripts/run_pipeline.py --vendors vendor_key --skip-phases 4
+```
+
+**❌ NEVER create vendor-specific scripts like:**
+- `scripts/scrape_vendor.py`
+- `scripts/discover_urls_vendor.py`
+- `scripts/ingest_vendor.py`
+- Any script that bypasses `run_pipeline.py`
+
+#### Step 4: Verify Results
+
+- Check `data/scraped/{vendor_key}/` for scraped files
+- Check Neo4j Browser for loaded references
+- Review `logs/pipeline_report_*.json` for summary
+
+**That's it!** No need to create vendor-specific scripts. The unified pipeline (`scripts/run_pipeline.py`) handles all phases automatically:
+- Phase 1: URL Discovery (sitemap or pagination)
+- Phase 2: Content Scraping (with idempotency checks)
+- Phase 3: Database Loading (with deduplication)
+- Phase 4: Classification (only unclassified references)
+
+**Key Points**:
+- ✅ **UniversalScraper handles ALL vendors** - no scraper classes needed!
+- ✅ Always try sitemap first (100x faster, free!)
+- ✅ Configuration-driven (add to `data/vendors.json` + `sitemap_discovery.py` if using sitemap)
+- ✅ **No Python code needed** - just JSON configuration
+- ✅ **If vendor exists, fix config - don't duplicate**
+- ✅ No vendor-specific scripts needed (use unified pipeline)
+- ✅ Fully idempotent (safe to re-run daily)
+
+**Remember:**
+- **ALL vendors** use `UniversalScraper` via configuration
+- **Always check `data/vendors.json` first** - vendor might already be configured!
 
 **Return schema**:
 ```python{
@@ -463,7 +745,7 @@ When querying the Neo4j database, **always prefer MCP tools** over writing Pytho
 ## When to Ask for Help
 
 If you encounter:
-- Websites with heavy JavaScript or Cloudflare protection (use HyperBrowser.ai fallback)
+- Websites with heavy JavaScript or Cloudflare protection (Scrapy tries first, HyperBrowser.ai fallback automatic)
 - Gemini API rate limits that can't be solved with exponential backoff
 - Neo4j query performance issues
 - Classification accuracy below 80% after prompt tuning
@@ -473,25 +755,60 @@ If you encounter:
 
 Flag it and ask rather than guessing.
 
+## Architecture Philosophy: Modular Engine, Not Brittle Pipelines
+
+**Core Principle**: Build a modular, scalable engine that works for any vendor, not vendor-specific scripts that break when patterns change.
+
+**Key Design Decisions**:
+1. **Abstraction over implementation**: Scraper classes implement common interface, not vendor-specific logic in pipeline
+2. **Configuration-driven**: Vendor settings in JSON (`data/vendors.json`), not hardcoded in scripts
+3. **Pluggable components**: Discovery methods (sitemap/pagination) are pluggable strategies
+4. **Idempotent by design**: Every phase checks existing state before processing
+5. **Error isolation**: Vendor failures don't break entire pipeline
+6. **Extensible**: Adding new vendor = add config + scraper class, not new pipeline script
+
+**Anti-patterns to avoid**:
+- Creating new scripts per vendor (creates maintenance burden)
+- Hardcoding vendor-specific logic in pipeline runner
+- Assuming all vendors work the same way
+- Building pipelines that break when one vendor changes
+- Duplicating phase logic across vendor scripts
+
+**Unified Pipeline System**:
+- Single entry point: `scripts/run_pipeline.py`
+- Processes all vendors through all 4 phases
+- Fully idempotent (cost-effective daily runs)
+- Configuration-driven (add vendors via `data/vendors.json`)
+- Error handling per vendor (continues on failures)
+
 ## Current Sprint Focus
 
 **Phase 1: Proof of Concept** ✅ (Complete!)
 
 Tasks:
 1. ✅ Set up project structure
-2. ✅ Build Snowflake scraper (with pagination and HyperBrowser.ai)
-3. ✅ Build MongoDB scraper (with sitemap discovery - 10 seconds!)
-4. ✅ Build Redis scraper (with pagination)
-5. ✅ Create sitemap-based URL discovery utility
-6. ✅ Load raw data to AuraDB
-7. ✅ Create Gemini classification function
-8. ✅ Process 234 MongoDB references end-to-end
-9. ✅ Data exploration and insights
+2. ✅ Build UniversalScraper (works for all vendors via configuration)
+3. ✅ Create sitemap-based URL discovery utility
+4. ✅ Load raw data to AuraDB
+5. ✅ Create Gemini classification function
+6. ✅ Process 234 MongoDB references end-to-end
+7. ✅ Data exploration and insights
+8. ✅ Build unified pipeline system (modular engine architecture)
+9. ✅ Integrate Scrapy-first approach (cost-effective scraping)
+
+### Current Data
+
+- **Total References**: 294 (234 MongoDB + 18 Snowflake + 42 Redis)
+- **Total Accounts**: 243+ unique accounts (increasing with newly classified Redis stories)
+- **Total Use Cases**: 47 different use cases (expected to increase with Redis coverage)
+- **Total Industries**: 21 industries
+- **Total Outcomes**: 885+ outcome records with metrics
 
 **Current Status**:
 - **MongoDB**: 234 references fully processed (sitemap discovery worked perfectly!)
 - **Snowflake**: 18 references processed
-- **Redis**: 8 URLs discovered (ready for Phase 2)
+- **Redis**: 50 references processed (Scrapy-first discovery with JSON pathname fallback)
+- **Unified Pipeline**: Single script processes all vendors with full idempotency
 
 **Next Steps**:
 - Build similarity search queries
@@ -520,7 +837,7 @@ r.classification_date = datetime(),
 r.quoted_text = $quoted_textWITH r
 MERGE (c:Customer {name: $customer_name})
 SET c.size = $size, c.region = $region
-MERGE (r)-[:FEATURES]->(c)WITH r, c
+MERGE (r)-[:FEATURES]->(c)WITH r
 MERGE (i:Industry {name: $industry})
 MERGE (c)-[:IN_INDUSTRY]->(i)WITH r
 UNWIND $use_cases as uc_name
@@ -537,10 +854,21 @@ LIMIT 10
 
 ## Remember
 
+- **🚨 ONE universal way**: ALL ingestion goes through `scripts/run_pipeline.py` - NO EXCEPTIONS
 - **Start simple**: Get one vendor working end-to-end before scaling
 - **Preserve raw data**: Always keep original scraped text
 - **Iterate on prompts**: Classification will improve with tuning
 - **Use the graph**: When queries get complex, the graph relationships make them simple
 - **Focus on v1 scope**: Resist feature creep until core value is proven
+- **Configuration over code**: Add vendors via `data/vendors.json`, not new scripts
+
+## Deprecated/Legacy Scripts
+
+**⚠️ Scripts in `scripts/archive/` are legacy and should NOT be used:**
+- `scripts/archive/discover_urls_*.py` - Use `run_pipeline.py --phases 1` instead
+- `scripts/archive/scrape_phase2_*.py` - Use `run_pipeline.py --phases 2` instead
+- `scripts/archive/load_and_classify_*.py` - Use `run_pipeline.py --phases 3,4` instead
+
+**These exist for reference only. Always use the unified pipeline.**
 
 Good luck! This is going to be a powerful tool.
